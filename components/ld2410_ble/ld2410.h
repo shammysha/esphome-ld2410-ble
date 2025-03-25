@@ -29,7 +29,7 @@
 #include <map>
 
 namespace esphome {
-namespace ld2410 {
+namespace ld2410_ble {
 
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
 
@@ -47,27 +47,12 @@ static const uint8_t CMD_SET_DISTANCE_RESOLUTION = 0x00AA;
 static const uint8_t CMD_QUERY_LIGHT_CONTROL = 0x00AE;
 static const uint8_t CMD_SET_LIGHT_CONTROL = 0x00AD;
 static const uint8_t CMD_SET_BAUD_RATE = 0x00A1;
+static const uint8_t CMD_PERMISSIONS = 0x00A8;
 static const uint8_t CMD_BT_PASSWORD = 0x00A9;
 static const uint8_t CMD_MAC = 0x00A5;
 static const uint8_t CMD_RESET = 0x00A2;
 static const uint8_t CMD_RESTART = 0x00A3;
 static const uint8_t CMD_BLUETOOTH = 0x00A4;
-
-enum BaudRateStructure : uint8_t {
-  BAUD_RATE_9600 = 1,
-  BAUD_RATE_19200 = 2,
-  BAUD_RATE_38400 = 3,
-  BAUD_RATE_57600 = 4,
-  BAUD_RATE_115200 = 5,
-  BAUD_RATE_230400 = 6,
-  BAUD_RATE_256000 = 7,
-  BAUD_RATE_460800 = 8
-};
-
-static const std::map<std::string, uint8_t> BAUD_RATE_ENUM_TO_INT{
-    {"9600", BAUD_RATE_9600},     {"19200", BAUD_RATE_19200},   {"38400", BAUD_RATE_38400},
-    {"57600", BAUD_RATE_57600},   {"115200", BAUD_RATE_115200}, {"230400", BAUD_RATE_230400},
-    {"256000", BAUD_RATE_256000}, {"460800", BAUD_RATE_460800}};
 
 enum DistanceResolutionStructure : uint8_t { DISTANCE_RESOLUTION_0_2 = 0x01, DISTANCE_RESOLUTION_0_75 = 0x00 };
 
@@ -134,7 +119,7 @@ enum PeriodicDataValue : uint8_t { HEAD = 0XAA, END = 0x55, CHECK = 0x00 };
 enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
 
 //  char cmd[2] = {enable ? 0xFF : 0xFE, 0x00};
-class LD2410Component : public Component, public uart::UARTDevice {
+class LD2410BLEComponent : public Component, public ble_client::BLEClientNode {
 #ifdef USE_SENSOR
   SUB_SENSOR(moving_target_distance)
   SUB_SENSOR(still_target_distance)
@@ -176,21 +161,14 @@ class LD2410Component : public Component, public uart::UARTDevice {
 #endif
 
  public:
-  LD2410Component();
+  LD2410BLEComponent() = default;
+
   void setup() override;
   void dump_config() override;
   void loop() override;
+  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) override;
+
   void set_light_out_control();
-#ifdef USE_NUMBER
-  void set_gate_still_threshold_number(int gate, number::Number *n);
-  void set_gate_move_threshold_number(int gate, number::Number *n);
-  void set_max_distances_timeout();
-  void set_gate_threshold(uint8_t gate);
-#endif
-#ifdef USE_SENSOR
-  void set_gate_move_sensor(int gate, sensor::Sensor *s);
-  void set_gate_still_sensor(int gate, sensor::Sensor *s);
-#endif
   void set_throttle(uint16_t value) { this->throttle_ = value; };
   void set_bluetooth_password(const std::string &password);
   void set_engineering_mode(bool enable);
@@ -200,6 +178,21 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void set_distance_resolution(const std::string &state);
   void set_baud_rate(const std::string &state);
   void factory_reset();
+
+  void set_password(const std::string &password) { this->password_ = password; }
+
+
+#ifdef USE_NUMBER
+  void set_gate_still_threshold_number(int gate, number::Number *n);
+  void set_gate_move_threshold_number(int gate, number::Number *n);
+  void set_max_distances_timeout();
+  void set_gate_threshold(uint8_t gate);
+#endif
+
+#ifdef USE_SENSOR
+  void set_gate_move_sensor(int gate, sensor::Sensor *s);
+  void set_gate_still_sensor(int gate, sensor::Sensor *s);
+#endif
 
  protected:
   int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
@@ -215,14 +208,23 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void get_light_control_();
   void restart_();
 
+  esp32_ble_tracker::ESPBTUUID service_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff0-0000-1000-8000-00805f9b34fb");
+  esp32_ble_tracker::ESPBTUUID char_notify_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff0-0000-1000-8000-00805f9b34fb");
+  esp32_ble_tracker::ESPBTUUID char_command_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff0-0000-1000-8000-00805f9b34fb");
+
   int32_t last_periodic_millis_ = millis();
   int32_t last_engineering_mode_change_millis_ = millis();
   uint16_t throttle_;
+  uint16_t char_notify_handle_;
+  uint16_t char_command_handle_;
   std::string version_;
   std::string mac_;
   std::string out_pin_level_;
   std::string light_function_;
   float light_threshold_ = -1;
+  std::string password_;
+
+
 #ifdef USE_NUMBER
   std::vector<number::Number *> gate_still_threshold_numbers_ = std::vector<number::Number *>(9);
   std::vector<number::Number *> gate_move_threshold_numbers_ = std::vector<number::Number *>(9);

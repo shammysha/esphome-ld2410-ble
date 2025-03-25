@@ -6,9 +6,9 @@
 namespace esphome {
 namespace ld2410 {
 
-class DistanceResolutionSelect : public select::Select, public Parented<LD2410Component> {
+class LightOutControlSelect : public select::Select, public Parented<LD2410BLEComponent> {
  public:
-  DistanceResolutionSelect() = default;
+  LightOutControlSelect() = default;
 
  protected:
   void control(const std::string &value) override;

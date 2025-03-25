@@ -8,12 +8,12 @@ from esphome.const import (
     ICON_BLUETOOTH,
     ICON_CHIP,
 )
-from . import CONF_LD2410_ID, LD2410Component
+from . import CONF_LD2410_ID, LD2410BLEComponent
 
 DEPENDENCIES = ["ld2410"]
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
+    cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410BLEComponent),
     cv.Optional(CONF_VERSION): text_sensor.text_sensor_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon=ICON_CHIP
     ),

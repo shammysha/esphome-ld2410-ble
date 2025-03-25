@@ -12,13 +12,13 @@ from esphome.const import (
     CONF_HAS_MOVING_TARGET,
     CONF_HAS_STILL_TARGET,
 )
-from . import CONF_LD2410_ID, LD2410Component
+from . import CONF_LD2410_ID, LD2410BLEComponent
 
 DEPENDENCIES = ["ld2410"]
 CONF_OUT_PIN_PRESENCE_STATUS = "out_pin_presence_status"
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
+    cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410BLEComponent),
     cv.Optional(CONF_HAS_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_OCCUPANCY,
         icon=ICON_ACCOUNT,

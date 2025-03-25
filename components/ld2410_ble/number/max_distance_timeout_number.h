@@ -6,7 +6,7 @@
 namespace esphome {
 namespace ld2410 {
 
-class MaxDistanceTimeoutNumber : public number::Number, public Parented<LD2410Component> {
+class MaxDistanceTimeoutNumber : public number::Number, public Parented<LD2410BLEComponent> {
  public:
   MaxDistanceTimeoutNumber() = default;
 

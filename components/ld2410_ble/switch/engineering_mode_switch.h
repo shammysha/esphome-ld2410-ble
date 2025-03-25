@@ -6,9 +6,9 @@
 namespace esphome {
 namespace ld2410 {
 
-class BluetoothSwitch : public switch_::Switch, public Parented<LD2410Component> {
+class EngineeringModeSwitch : public switch_::Switch, public Parented<LD2410BLEComponent> {
  public:
-  BluetoothSwitch() = default;
+  EngineeringModeSwitch() = default;
 
  protected:
   void write_state(bool state) override;

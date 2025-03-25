@@ -13,7 +13,7 @@ from esphome.const import (
     ICON_MOTION_SENSOR,
     ICON_LIGHTBULB,
 )
-from . import CONF_LD2410_ID, LD2410Component
+from . import CONF_LD2410_ID, LD2410BLEComponent
 
 DEPENDENCIES = ["ld2410"]
 CONF_MOVING_DISTANCE = "moving_distance"
@@ -25,7 +25,7 @@ CONF_MOVE_ENERGY = "move_energy"
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
+        cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410BLEComponent),
         cv.Optional(CONF_MOVING_DISTANCE): sensor.sensor_schema(
             device_class=DEVICE_CLASS_DISTANCE,
             unit_of_measurement=UNIT_CENTIMETER,

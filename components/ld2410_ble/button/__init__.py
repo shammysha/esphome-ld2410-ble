@@ -11,16 +11,16 @@ from esphome.const import (
     ICON_RESTART_ALERT,
     ICON_DATABASE,
 )
-from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
+from .. import CONF_LD2410_ID, LD2410BLEComponent, ld2410_ble_ns
 
-QueryButton = ld2410_ns.class_("QueryButton", button.Button)
-ResetButton = ld2410_ns.class_("ResetButton", button.Button)
-RestartButton = ld2410_ns.class_("RestartButton", button.Button)
+QueryButton = ld2410_ble_ns.class_("QueryButton", button.Button)
+ResetButton = ld2410_ble_ns.class_("ResetButton", button.Button)
+RestartButton = ld2410_ble_ns.class_("RestartButton", button.Button)
 
 CONF_QUERY_PARAMS = "query_params"
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
+    cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410BLEComponent),
     cv.Optional(CONF_FACTORY_RESET): button.button_schema(
         ResetButton,
         device_class=DEVICE_CLASS_RESTART,

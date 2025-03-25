@@ -6,11 +6,12 @@
 namespace esphome {
 namespace ld2410 {
 
-class LightThresholdNumber : public number::Number, public Parented<LD2410Component> {
+class GateThresholdNumber : public number::Number, public Parented<LD2410BLEComponent> {
  public:
-  LightThresholdNumber() = default;
+  GateThresholdNumber(uint8_t gate);
 
  protected:
+  uint8_t gate_;
   void control(float value) override;
 };
 

@@ -9,11 +9,11 @@ from esphome.const import (
     ICON_LIGHTBULB,
     ICON_RULER,
 )
-from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
+from .. import CONF_LD2410_ID, LD2410BLEComponent, ld2410_ble_ns
 
-BaudRateSelect = ld2410_ns.class_("BaudRateSelect", select.Select)
-DistanceResolutionSelect = ld2410_ns.class_("DistanceResolutionSelect", select.Select)
-LightOutControlSelect = ld2410_ns.class_("LightOutControlSelect", select.Select)
+BaudRateSelect = ld2410_ble_ns.class_("BaudRateSelect", select.Select)
+DistanceResolutionSelect = ld2410_ble_ns.class_("DistanceResolutionSelect", select.Select)
+LightOutControlSelect = ld2410_ble_ns.class_("LightOutControlSelect", select.Select)
 
 CONF_DISTANCE_RESOLUTION = "distance_resolution"
 CONF_LIGHT_FUNCTION = "light_function"
@@ -21,7 +21,7 @@ CONF_OUT_PIN_LEVEL = "out_pin_level"
 
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
+    cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410BLEComponent),
     cv.Optional(CONF_DISTANCE_RESOLUTION): select.select_schema(
         DistanceResolutionSelect,
         entity_category=ENTITY_CATEGORY_CONFIG,

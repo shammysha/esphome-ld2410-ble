@@ -6,9 +6,9 @@
 namespace esphome {
 namespace ld2410 {
 
-class RestartButton : public button::Button, public Parented<LD2410Component> {
+class ResetButton : public button::Button, public Parented<LD2410BLEComponent> {
  public:
-  RestartButton() = default;
+  ResetButton() = default;
 
  protected:
   void press_action() override;

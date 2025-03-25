@@ -16,9 +16,85 @@ namespace ld2410 {
 
 static const char *const TAG = "ld2410";
 
-LD2410Component::LD2410Component() {}
+LD2410BLEComponent::LD2410BLEComponent() {}
 
-void LD2410Component::dump_config() {
+void AirthingsWaveBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
+  switch (event) {
+    case ESP_GATTC_OPEN_EVT: {
+      if (param->open.status == ESP_GATT_OK) {
+        ESP_LOGI(TAG, "Connected successfully!");
+
+        auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
+        if (chr == nullptr) {
+          ESP_LOGE(TAG, "[%s] No command service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
+          break;
+        }
+        this->char_command_handle_ = chr->handle;
+        this->set_permissions();
+      }
+      break;
+    }
+
+    case ESP_GATTC_DISCONNECT_EVT: {
+      this->handle_ = 0;
+      this->acp_handle_ = 0;
+      this->cccd_handle_ = 0;
+      ESP_LOGW(TAG, "Disconnected!");
+      break;
+    }
+
+    case ESP_GATTC_SEARCH_CMPL_EVT: {
+      auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_notify_uuid_);
+      if (chr == nullptr) {
+        ESP_LOGE(TAG, "[%s] No notify service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
+        break;
+      }
+      this->char_notify_handle_ = chr->handle;
+
+      auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(), this->parent()->get_remote_bda(), this->char_notify_handle_);
+
+      if (status) {
+        ESP_LOGE(TAG, "%s esp_ble_gattc_register_for_notify failed, status=%d", this->parent()->address_str().c_str(), status);
+      }
+
+      break;
+    }
+
+    case ESP_GATTC_READ_CHAR_EVT: {
+      if (param->read.conn_id != this->parent()->get_conn_id())
+        break;
+      if (param->read.status != ESP_GATT_OK) {
+        ESP_LOGE(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
+        break;
+      }
+      if (param->read.handle == this->char_notify_handle_) {
+        this->handle_ack_data_(param->read.value, param->read.value_len);
+      }
+      break;
+    }
+
+    case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
+      this->node_state = espbt::ClientState::ESTABLISHED;
+      break;
+    }
+
+    case ESP_GATTC_NOTIFY_EVT: {
+      if (param->notify.conn_id != this->parent()->get_conn_id()) {
+        break;
+      }
+      if (param->notify.handle == this->char_notify_handle_) {
+        this->handle_periodic_data_(param->notify.value, param->notify.value_len);
+      }
+      break;
+    }
+
+    default:
+      break;
+  }
+}
+
+
+void LD2410BLEComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LD2410:");
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "TargetBinarySensor", this->target_binary_sensor_);
@@ -71,13 +147,9 @@ void LD2410Component::dump_config() {
     LOG_NUMBER("  ", "Move Thresholds Number", n);
   }
 #endif
-  this->read_all_info();
-  ESP_LOGCONFIG(TAG, "  Throttle_ : %ums", this->throttle_);
-  ESP_LOGCONFIG(TAG, "  MAC Address : %s", const_cast<char *>(this->mac_.c_str()));
-  ESP_LOGCONFIG(TAG, "  Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
 }
 
-void LD2410Component::setup() {
+void LD2410BLEComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up LD2410...");
   this->read_all_info();
   ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
@@ -85,7 +157,7 @@ void LD2410Component::setup() {
   ESP_LOGCONFIG(TAG, "LD2410 setup complete.");
 }
 
-void LD2410Component::read_all_info() {
+void LD2410BLEComponent::read_all_info() {
   this->set_config_mode_(true);
   this->get_version_();
   this->get_mac_();
@@ -101,13 +173,13 @@ void LD2410Component::read_all_info() {
 #endif
 }
 
-void LD2410Component::restart_and_read_all_info() {
+void LD2410BLEComponent::restart_and_read_all_info() {
   this->set_config_mode_(true);
   this->restart_();
   this->set_timeout(1000, [this]() { this->read_all_info(); });
 }
 
-void LD2410Component::loop() {
+void LD2410BLEComponent::loop() {
   const int max_line_length = 80;
   static uint8_t buffer[max_line_length];
 
@@ -116,34 +188,53 @@ void LD2410Component::loop() {
   }
 }
 
-void LD2410Component::send_command_(uint8_t command, const uint8_t *command_value, int command_value_len) {
+void LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_value, int command_value_len) {
   ESP_LOGV(TAG, "Sending COMMAND %02X", command);
-  // frame start bytes
-  this->write_array(CMD_FRAME_HEADER, 4);
-  // length bytes
+
   int len = 2;
   if (command_value != nullptr)
     len += command_value_len;
-  this->write_byte(lowbyte(len));
-  this->write_byte(highbyte(len));
 
-  // command
-  this->write_byte(lowbyte(command));
-  this->write_byte(highbyte(command));
+  std::vector<uint8_t> data = CMD_FRAME_HEADER;
+  std::vector<uint8_t> postamble = CMD_FRAME_END;
 
-  // command value bytes
+  data.push_back(lowbyte(len));
+  data.push_back(highbyte(len));
+  data.push_back(lowbyte(command));
+  data.push_back(highbyte(command));
+
   if (command_value != nullptr) {
     for (int i = 0; i < command_value_len; i++) {
-      this->write_byte(command_value[i]);
+      data.push_back(command_value[i]);
     }
   }
-  // frame end bytes
-  this->write_array(CMD_FRAME_END, 4);
-  // FIXME to remove
-  delay(50);  // NOLINT
+  data.insert(data.end(), postamble.begin(), postamble.end());
+
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
+    ESPD_LOGE(TAG, "Cannot write to BLE characteristic - not connected");
+    return false;
+  }
+
+  ESPD_LOGVV(TAG, "Will write %d bytes: %s", value.size(), format_hex_pretty(value).c_str());
+
+  esp_err_t err = esp_ble_gattc_write_char(
+      this->parent()->get_gattc_if(),
+      this->parent()->get_conn_id(),
+      this->char_command_handle_,
+      value.size(),
+      const_cast<uint8_t *>(value.data()),
+      this->write_type_,
+      ESP_GATT_AUTH_REQ_NONE
+  );
+
+  if (err != ESP_OK) {
+    ESPD_LOGE(TAG, "Error writing to characteristic: %s!", esp_err_to_name(err));
+    return false;
+  }
+  return true;
 }
 
-void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
+void LD2410BLEComponent::handle_periodic_data_(uint8_t *buffer, int len) {
   if (len < 12)
     return;  // 4 frame start bytes + 2 length bytes + 1 data end byte + 1 crc byte + 4 frame end bytes
   if (buffer[0] != 0xF4 || buffer[1] != 0xF3 || buffer[2] != 0xF2 || buffer[3] != 0xF1)  // check 4 frame start bytes
@@ -326,7 +417,7 @@ std::function<void(void)> set_number_value(number::Number *n, float value) {
 }
 #endif
 
-bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
+bool LD2410BLEComponent::handle_ack_data_(uint8_t *buffer, int len) {
   ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", buffer[COMMAND]);
   if (len < 10) {
     ESP_LOGE(TAG, "Error with last command : incorrect length");
@@ -475,7 +566,7 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
   return true;
 }
 
-void LD2410Component::readline_(int readch, uint8_t *buffer, int len) {
+void LD2410BLEComponent::readline_(int readch, uint8_t *buffer, int len) {
   static int pos = 0;
 
   if (readch >= 0) {
@@ -503,13 +594,13 @@ void LD2410Component::readline_(int readch, uint8_t *buffer, int len) {
   }
 }
 
-void LD2410Component::set_config_mode_(bool enable) {
+void LD2410BLEComponent::set_config_mode_(bool enable) {
   uint8_t cmd = enable ? CMD_ENABLE_CONF : CMD_DISABLE_CONF;
   uint8_t cmd_value[2] = {0x01, 0x00};
   this->send_command_(cmd, enable ? cmd_value : nullptr, 2);
 }
 
-void LD2410Component::set_bluetooth(bool enable) {
+void LD2410BLEComponent::set_bluetooth(bool enable) {
   this->set_config_mode_(true);
   uint8_t enable_cmd_value[2] = {0x01, 0x00};
   uint8_t disable_cmd_value[2] = {0x00, 0x00};
@@ -517,21 +608,31 @@ void LD2410Component::set_bluetooth(bool enable) {
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
-void LD2410Component::set_distance_resolution(const std::string &state) {
+void LD2410BLEComponent::set_distance_resolution(const std::string &state) {
   this->set_config_mode_(true);
   uint8_t cmd_value[2] = {DISTANCE_RESOLUTION_ENUM_TO_INT.at(state), 0x00};
   this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, 2);
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
-void LD2410Component::set_baud_rate(const std::string &state) {
+void LD2410BLEComponent::set_baud_rate(const std::string &state) {
   this->set_config_mode_(true);
   uint8_t cmd_value[2] = {BAUD_RATE_ENUM_TO_INT.at(state), 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, 2);
   this->set_timeout(200, [this]() { this->restart_(); });
 }
 
-void LD2410Component::set_bluetooth_password(const std::string &password) {
+void LD2410BLEComponent::set_permissions() {
+  if (tis->password_.length() != 6) {
+    ESP_LOGE(TAG, "set_bluetooth_password(): invalid password length, must be exactly 6 chars '%s'", this->password_.c_str());
+    return;
+  }
+  uint8_t cmd_value[6];
+  std::copy(this->password_.begin(), this->password_.end(), std::begin(cmd_value));
+  this->send_command_(CMD_PERMISSIONS, cmd_value, 6);
+}
+
+void LD2410BLEComponent::set_bluetooth_password(const std::string &password) {
   if (password.length() != 6) {
     ESP_LOGE(TAG, "set_bluetooth_password(): invalid password length, must be exactly 6 chars '%s'", password.c_str());
     return;
@@ -541,9 +642,10 @@ void LD2410Component::set_bluetooth_password(const std::string &password) {
   std::copy(password.begin(), password.end(), std::begin(cmd_value));
   this->send_command_(CMD_BT_PASSWORD, cmd_value, 6);
   this->set_config_mode_(false);
+  this->password_ = password;
 }
 
-void LD2410Component::set_engineering_mode(bool enable) {
+void LD2410BLEComponent::set_engineering_mode(bool enable) {
   this->set_config_mode_(true);
   last_engineering_mode_change_millis_ = millis();
   uint8_t cmd = enable ? CMD_ENABLE_ENG : CMD_DISABLE_ENG;
@@ -551,26 +653,26 @@ void LD2410Component::set_engineering_mode(bool enable) {
   this->set_config_mode_(false);
 }
 
-void LD2410Component::factory_reset() {
+void LD2410BLEComponent::factory_reset() {
   this->set_config_mode_(true);
   this->send_command_(CMD_RESET, nullptr, 0);
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
-void LD2410Component::restart_() { this->send_command_(CMD_RESTART, nullptr, 0); }
+void LD2410BLEComponent::restart_() { this->send_command_(CMD_RESTART, nullptr, 0); }
 
-void LD2410Component::query_parameters_() { this->send_command_(CMD_QUERY, nullptr, 0); }
-void LD2410Component::get_version_() { this->send_command_(CMD_VERSION, nullptr, 0); }
-void LD2410Component::get_mac_() {
+void LD2410BLEComponent::query_parameters_() { this->send_command_(CMD_QUERY, nullptr, 0); }
+void LD2410BLEComponent::get_version_() { this->send_command_(CMD_VERSION, nullptr, 0); }
+void LD2410BLEComponent::get_mac_() {
   uint8_t cmd_value[2] = {0x01, 0x00};
   this->send_command_(CMD_MAC, cmd_value, 2);
 }
-void LD2410Component::get_distance_resolution_() { this->send_command_(CMD_QUERY_DISTANCE_RESOLUTION, nullptr, 0); }
+void LD2410BLEComponent::get_distance_resolution_() { this->send_command_(CMD_QUERY_DISTANCE_RESOLUTION, nullptr, 0); }
 
-void LD2410Component::get_light_control_() { this->send_command_(CMD_QUERY_LIGHT_CONTROL, nullptr, 0); }
+void LD2410BLEComponent::get_light_control_() { this->send_command_(CMD_QUERY_LIGHT_CONTROL, nullptr, 0); }
 
 #ifdef USE_NUMBER
-void LD2410Component::set_max_distances_timeout() {
+void LD2410BLEComponent::set_max_distances_timeout() {
   if (!this->max_move_distance_gate_number_->has_state() || !this->max_still_distance_gate_number_->has_state() ||
       !this->timeout_number_->has_state()) {
     return;
@@ -604,7 +706,7 @@ void LD2410Component::set_max_distances_timeout() {
   this->set_config_mode_(false);
 }
 
-void LD2410Component::set_gate_threshold(uint8_t gate) {
+void LD2410BLEComponent::set_gate_threshold(uint8_t gate) {
   number::Number *motionsens = this->gate_move_threshold_numbers_[gate];
   number::Number *stillsens = this->gate_still_threshold_numbers_[gate];
 
@@ -633,16 +735,16 @@ void LD2410Component::set_gate_threshold(uint8_t gate) {
   this->set_config_mode_(false);
 }
 
-void LD2410Component::set_gate_still_threshold_number(int gate, number::Number *n) {
+void LD2410BLEComponent::set_gate_still_threshold_number(int gate, number::Number *n) {
   this->gate_still_threshold_numbers_[gate] = n;
 }
 
-void LD2410Component::set_gate_move_threshold_number(int gate, number::Number *n) {
+void LD2410BLEComponent::set_gate_move_threshold_number(int gate, number::Number *n) {
   this->gate_move_threshold_numbers_[gate] = n;
 }
 #endif
 
-void LD2410Component::set_light_out_control() {
+void LD2410BLEComponent::set_light_out_control() {
 #ifdef USE_NUMBER
   if (this->light_threshold_number_ != nullptr && this->light_threshold_number_->has_state()) {
     this->light_threshold_ = this->light_threshold_number_->state;
@@ -672,8 +774,8 @@ void LD2410Component::set_light_out_control() {
 }
 
 #ifdef USE_SENSOR
-void LD2410Component::set_gate_move_sensor(int gate, sensor::Sensor *s) { this->gate_move_sensors_[gate] = s; }
-void LD2410Component::set_gate_still_sensor(int gate, sensor::Sensor *s) { this->gate_still_sensors_[gate] = s; }
+void LD2410BLEComponent::set_gate_move_sensor(int gate, sensor::Sensor *s) { this->gate_move_sensors_[gate] = s; }
+void LD2410BLEComponent::set_gate_still_sensor(int gate, sensor::Sensor *s) { this->gate_still_sensors_[gate] = s; }
 #endif
 
 }  // namespace ld2410

@@ -14,11 +14,11 @@ from esphome.const import (
     ICON_TIMELAPSE,
     ICON_LIGHTBULB,
 )
-from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
+from .. import CONF_LD2410_ID, LD2410BLEComponent, ld2410_ble_ns
 
-GateThresholdNumber = ld2410_ns.class_("GateThresholdNumber", number.Number)
-LightThresholdNumber = ld2410_ns.class_("LightThresholdNumber", number.Number)
-MaxDistanceTimeoutNumber = ld2410_ns.class_("MaxDistanceTimeoutNumber", number.Number)
+GateThresholdNumber = ld2410_ble_ns.class_("GateThresholdNumber", number.Number)
+LightThresholdNumber = ld2410_ble_ns.class_("LightThresholdNumber", number.Number)
+MaxDistanceTimeoutNumber = ld2410_ble_ns.class_("MaxDistanceTimeoutNumber", number.Number)
 
 CONF_MAX_MOVE_DISTANCE_GATE = "max_move_distance_gate"
 CONF_MAX_STILL_DISTANCE_GATE = "max_still_distance_gate"
@@ -30,7 +30,7 @@ TIMEOUT_GROUP = "timeout"
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
+        cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410BLEComponent),
         cv.Inclusive(CONF_TIMEOUT, TIMEOUT_GROUP): number.number_schema(
             MaxDistanceTimeoutNumber,
             unit_of_measurement=UNIT_SECOND,

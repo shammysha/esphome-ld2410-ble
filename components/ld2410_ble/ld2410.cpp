@@ -18,7 +18,7 @@ static const char *const TAG = "ld2410";
 
 LD2410BLEComponent::LD2410BLEComponent() {}
 
-void AirthingsWaveBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
+void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {

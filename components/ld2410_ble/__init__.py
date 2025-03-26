@@ -10,7 +10,7 @@ CODEOWNERS = ["@shammysha", "@sebcaps", "@regevbr"]
 MULTI_CONF = True
 
 ld2410_ble_ns = cg.esphome_ns.namespace("ld2410_ble")
-LD2410BLEComponent = ld2410_ble_ns.class_("LD2410BLEComponent", cg.Component, ble_client.BLEClientNode)
+LD2410BLEComponent = ld2410_ble_ns.class_("LD2410BLEComponent", cg.PollingComponent, ble_client.BLEClientNode)
 
 CONF_LD2410_ID = "ld2410_id"
 
@@ -19,7 +19,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(LD2410BLEComponent),
         cv.Optional(CONF_PASSWORD, default="HiLink"): cv.string_strict
     }
-).extend(ble_client.BLE_CLIENT_SCHEMA).extend(cv.COMPONENT_SCHEMA)
+).extend(cv.polling_component_schema("30sec")).extend(ble_client.BLE_CLIENT_SCHEMA)
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

@@ -97,6 +97,17 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
   }
 }
 
+void LD2410BLEComponent::update() {
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
+    if (!this->parent()->enabled) {
+      ESP_LOGW(TAG, "Reconnecting to device");
+      this->parent()->set_enabled(true);
+      this->parent()->connect();
+    } else {
+      ESP_LOGW(TAG, "Connection in progress");
+    }
+  }
+}
 
 void LD2410BLEComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LD2410:");
@@ -182,8 +193,6 @@ void LD2410BLEComponent::restart_and_read_all_info() {
   this->restart_();
   this->set_timeout(1000, [this]() { this->read_all_info(); });
 }
-
-void LD2410BLEComponent::loop() {}
 
 bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_value, int command_value_len) {
   ESP_LOGV(TAG, "Sending COMMAND %02X", command);

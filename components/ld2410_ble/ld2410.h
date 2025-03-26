@@ -120,7 +120,7 @@ enum PeriodicDataValue : uint8_t { HEAD = 0XAA, END = 0x55, CHECK = 0x00 };
 enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
 
 //  char cmd[2] = {enable ? 0xFF : 0xFE, 0x00};
-class LD2410BLEComponent : public Component, public ble_client::BLEClientNode {
+class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClientNode {
 #ifdef USE_SENSOR
   SUB_SENSOR(moving_target_distance)
   SUB_SENSOR(still_target_distance)
@@ -165,7 +165,7 @@ class LD2410BLEComponent : public Component, public ble_client::BLEClientNode {
 
   void setup() override;
   void dump_config() override;
-  void loop() override;
+  void update() override;
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) override;
 
   void set_light_out_control();

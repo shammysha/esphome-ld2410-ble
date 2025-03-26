@@ -48,7 +48,6 @@ static const uint8_t CMD_QUERY_DISTANCE_RESOLUTION = 0x00AB;
 static const uint8_t CMD_SET_DISTANCE_RESOLUTION = 0x00AA;
 static const uint8_t CMD_QUERY_LIGHT_CONTROL = 0x00AE;
 static const uint8_t CMD_SET_LIGHT_CONTROL = 0x00AD;
-static const uint8_t CMD_SET_BAUD_RATE = 0x00A1;
 static const uint8_t CMD_PERMISSIONS = 0x00A8;
 static const uint8_t CMD_BT_PASSWORD = 0x00A9;
 static const uint8_t CMD_MAC = 0x00A5;
@@ -142,7 +141,6 @@ class LD2410BLEComponent : public Component, public ble_client::BLEClientNode {
 #endif
 #ifdef USE_SELECT
   SUB_SELECT(distance_resolution)
-  SUB_SELECT(baud_rate)
   SUB_SELECT(light_function)
   SUB_SELECT(out_pin_level)
 #endif
@@ -178,7 +176,6 @@ class LD2410BLEComponent : public Component, public ble_client::BLEClientNode {
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
   void set_distance_resolution(const std::string &state);
-  void set_baud_rate(const std::string &state);
   void factory_reset();
 
   void set_password(const std::string &password) { this->password_ = password; }
@@ -214,6 +211,8 @@ class LD2410BLEComponent : public Component, public ble_client::BLEClientNode {
   esp32_ble_tracker::ESPBTUUID service_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff0-0000-1000-8000-00805f9b34fb");
   esp32_ble_tracker::ESPBTUUID char_notify_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff0-0000-1000-8000-00805f9b34fb");
   esp32_ble_tracker::ESPBTUUID char_command_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff0-0000-1000-8000-00805f9b34fb");
+
+  esp_gatt_write_type_t write_type_{ESP_GATT_WRITE_TYPE_NO_RSP};
 
   int32_t last_periodic_millis_ = millis();
   int32_t last_engineering_mode_change_millis_ = millis();

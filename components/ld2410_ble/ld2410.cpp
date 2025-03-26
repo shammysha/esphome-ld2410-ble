@@ -1,10 +1,11 @@
 #include "ld2410.h"
 #include "esphome/core/log.h"
-
 #include <utility>
+
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
+
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif

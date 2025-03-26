@@ -14,7 +14,7 @@ from esphome.const import (
 )
 from . import CONF_LD2410_ID, LD2410BLEComponent
 
-DEPENDENCIES = ["ld2410"]
+DEPENDENCIES = ["ld2410_ble"]
 CONF_OUT_PIN_PRESENCE_STATUS = "out_pin_presence_status"
 
 CONFIG_SCHEMA = {

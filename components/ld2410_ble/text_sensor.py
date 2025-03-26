@@ -10,7 +10,7 @@ from esphome.const import (
 )
 from . import CONF_LD2410_ID, LD2410BLEComponent
 
-DEPENDENCIES = ["ld2410"]
+DEPENDENCIES = ["ld2410_ble"]
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410BLEComponent),

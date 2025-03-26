@@ -23,13 +23,15 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 #include "esphome/components/ble_client/ble_client.h"
+#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
-
 #include <map>
 
 namespace esphome {
 namespace ld2410_ble {
+
+namespace espbt = esphome::esp32_ble_tracker;
 
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
 

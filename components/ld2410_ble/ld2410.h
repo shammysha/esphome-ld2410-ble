@@ -197,6 +197,7 @@ class LD2410BLEComponent : public Component, public ble_client::BLEClientNode {
   int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
   void send_command_(uint8_t command_str, const uint8_t *command_value, int command_value_len);
   void set_config_mode_(bool enable);
+  void set_permissions();
   void handle_periodic_data_(uint8_t *buffer, int len);
   bool handle_ack_data_(uint8_t *buffer, int len);
   void readline_(int readch, uint8_t *buffer, int len);
@@ -206,6 +207,7 @@ class LD2410BLEComponent : public Component, public ble_client::BLEClientNode {
   void get_distance_resolution_();
   void get_light_control_();
   void restart_();
+
 
   esp32_ble_tracker::ESPBTUUID service_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff0-0000-1000-8000-00805f9b34fb");
   esp32_ble_tracker::ESPBTUUID char_notify_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff0-0000-1000-8000-00805f9b34fb");

@@ -5,7 +5,7 @@
 #include "ld2410.h"
 
 namespace esphome {
-namespace ld2410 {
+namespace ld2410_ble{
 
 template<typename... Ts> class BluetoothPasswordSetAction : public Action<Ts...> {
  public:

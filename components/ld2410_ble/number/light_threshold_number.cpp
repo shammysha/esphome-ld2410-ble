@@ -1,7 +1,7 @@
 #include "light_threshold_number.h"
 
 namespace esphome {
-namespace ld2410 {
+namespace ld2410_ble{
 
 void LightThresholdNumber::control(float value) {
   this->publish_state(value);

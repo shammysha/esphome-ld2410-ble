@@ -1,7 +1,7 @@
 #include "light_out_control_select.h"
 
 namespace esphome {
-namespace ld2410 {
+namespace ld2410_ble{
 
 void LightOutControlSelect::control(const std::string &value) {
   this->publish_state(value);

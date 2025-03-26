@@ -181,7 +181,6 @@ class LD2410BLEComponent : public Component, public ble_client::BLEClientNode {
 
   void set_password(const std::string &password) { this->password_ = password; }
 
-
 #ifdef USE_NUMBER
   void set_gate_still_threshold_number(int gate, number::Number *n);
   void set_gate_move_threshold_number(int gate, number::Number *n);

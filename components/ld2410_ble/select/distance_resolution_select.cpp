@@ -1,7 +1,7 @@
 #include "distance_resolution_select.h"
 
 namespace esphome {
-namespace ld2410 {
+namespace ld2410_ble{
 
 void DistanceResolutionSelect::control(const std::string &value) {
   this->publish_state(value);

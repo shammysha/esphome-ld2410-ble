@@ -4,7 +4,7 @@
 #include "../ld2410.h"
 
 namespace esphome {
-namespace ld2410 {
+namespace ld2410_ble{
 
 class GateThresholdNumber : public number::Number, public Parented<LD2410BLEComponent> {
  public:

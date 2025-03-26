@@ -1,7 +1,7 @@
 #include "restart_button.h"
 
 namespace esphome {
-namespace ld2410 {
+namespace ld2410_ble{
 
 void RestartButton::press_action() { this->parent_->restart_and_read_all_info(); }
 

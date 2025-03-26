@@ -1,7 +1,7 @@
 #include "engineering_mode_switch.h"
 
 namespace esphome {
-namespace ld2410 {
+namespace ld2410_ble{
 
 void EngineeringModeSwitch::write_state(bool state) {
   this->publish_state(state);

@@ -12,7 +12,7 @@
 #define lowbyte(val) (uint8_t)((val) &0xff)
 
 namespace esphome {
-namespace ld2410 {
+namespace ld2410_ble{
 
 static const char *const TAG = "ld2410";
 

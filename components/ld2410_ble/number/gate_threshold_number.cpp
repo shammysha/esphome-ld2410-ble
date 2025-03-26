@@ -1,7 +1,7 @@
 #include "gate_threshold_number.h"
 
 namespace esphome {
-namespace ld2410 {
+namespace ld2410_ble{
 
 GateThresholdNumber::GateThresholdNumber(uint8_t gate) : gate_(gate) {}
 

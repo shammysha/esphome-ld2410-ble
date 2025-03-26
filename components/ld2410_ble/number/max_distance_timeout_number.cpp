@@ -1,7 +1,7 @@
 #include "max_distance_timeout_number.h"
 
 namespace esphome {
-namespace ld2410 {
+namespace ld2410_ble{
 
 void MaxDistanceTimeoutNumber::control(float value) {
   this->publish_state(value);

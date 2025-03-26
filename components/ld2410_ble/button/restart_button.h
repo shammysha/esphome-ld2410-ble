@@ -4,7 +4,7 @@
 #include "../ld2410.h"
 
 namespace esphome {
-namespace ld2410 {
+namespace ld2410_ble{
 
 class RestartButton : public button::Button, public Parented<LD2410BLEComponent> {
  public:

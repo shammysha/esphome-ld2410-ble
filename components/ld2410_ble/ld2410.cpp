@@ -176,14 +176,7 @@ void LD2410BLEComponent::restart_and_read_all_info() {
   this->set_timeout(1000, [this]() { this->read_all_info(); });
 }
 
-void LD2410BLEComponent::loop() {
-  const int max_line_length = 80;
-  static uint8_t buffer[max_line_length];
-
-  while (available()) {
-    this->readline_(read(), buffer, max_line_length);
-  }
-}
+void LD2410BLEComponent::loop() {}
 
 void LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_value, int command_value_len) {
   ESP_LOGV(TAG, "Sending COMMAND %02X", command);

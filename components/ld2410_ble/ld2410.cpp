@@ -25,12 +25,6 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
       if (param->open.status == ESP_GATT_OK) {
         ESP_LOGI(TAG, "Connected successfully!");
 
-        auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
-        if (chr == nullptr) {
-          ESP_LOGE(TAG, "[%s] No command service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
-          break;
-        }
-        this->char_command_handle_ = chr->handle;
         this->set_permissions();
       }
       break;
@@ -44,12 +38,22 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
     }
 
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_notify_uuid_);
+      esphome::ble_client::BLECharacteristic *chr;
+
+      chr = this->parent()->get_characteristic(this->service_uuid_, this->char_notify_uuid_);
       if (chr == nullptr) {
         ESP_LOGE(TAG, "[%s] No notify service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
         break;
       }
       this->char_notify_handle_ = chr->handle;
+
+      chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
+      if (chr == nullptr) {
+        ESP_LOGE(TAG, "[%s] No command service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
+        break;
+      }
+      this->char_command_handle_ = chr->handle;
+
 
       auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(), this->parent()->get_remote_bda(), this->char_notify_handle_);
 

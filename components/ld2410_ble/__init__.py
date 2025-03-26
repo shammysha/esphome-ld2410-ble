@@ -9,7 +9,7 @@ DEPENDENCIES = ["ble_client"]
 CODEOWNERS = ["@shammysha", "@sebcaps", "@regevbr"]
 MULTI_CONF = True
 
-ld2410_ble_ns = cg.esphome_ns.namespace("ld2410")
+ld2410_ble_ns = cg.esphome_ns.namespace("ld2410_ble")
 LD2410BLEComponent = ld2410_ble_ns.class_("LD2410BLEComponent", cg.Component, ble_client.BLEClientNode)
 
 CONF_LD2410_ID = "ld2410_id"

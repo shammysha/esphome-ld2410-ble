@@ -435,8 +435,6 @@ bool LD2410BLEComponent::handle_ack_data_(uint8_t *buffer, int len) {
     case lowbyte(CMD_DISABLE_CONF):
       ESP_LOGV(TAG, "Handled Disabled conf command");
       break;
-#endif
-      break;
     case lowbyte(CMD_VERSION):
       this->version_ = format_version(buffer);
       ESP_LOGV(TAG, "FW Version is: %s", const_cast<char *>(this->version_.c_str()));

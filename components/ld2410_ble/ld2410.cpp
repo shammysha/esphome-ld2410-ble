@@ -19,10 +19,13 @@ namespace ld2410_ble{
 static const char *const TAG = "ld2410";
 
 void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
+  ESP_LOGI(TAG, "Event received: %d", event);
   switch (event) {
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
         ESP_LOGI(TAG, "Connected successfully!");
+
+        this->conn_id_ = param->open.conn_id;
 
         auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
         if (chr == nullptr) {
@@ -60,8 +63,8 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
     }
 
     case ESP_GATTC_READ_CHAR_EVT: {
-//      if (param->read.conn_id != this->parent()->get_conn_id())
-//        break;
+      if (param->read.conn_id != this->parent()->get_conn_id())
+        break;
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGE(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
         break;

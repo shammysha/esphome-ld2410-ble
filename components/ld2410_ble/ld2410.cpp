@@ -215,12 +215,12 @@ bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
     }
   }
   data.insert(data.end(), postamble.begin(), postamble.end());
-
+/*
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGE(TAG, "Cannot write to BLE characteristic - not connected");
     return false;
   }
-
+*/
   ESP_LOGVV(TAG, "Will write %d bytes: %s", sizeof(command_value), format_hex_pretty(value).c_str());
 
   esp_err_t err = esp_ble_gattc_write_char(

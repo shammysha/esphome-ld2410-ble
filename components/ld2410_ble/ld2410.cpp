@@ -185,8 +185,8 @@ void LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
   if (command_value != nullptr)
     len += command_value_len;
 
-  std::vector<uint8_t> data = CMD_FRAME_HEADER;
-  std::vector<uint8_t> postamble = CMD_FRAME_END;
+  std::vector<uint8_t> data(&CMD_FRAME_HEADER[0], &CMD_FRAME_HEADER[sizeof(CMD_FRAME_HEADER)]);
+  std::vector<uint8_t> postamble(&CMD_FRAME_END[0], &CMD_FRAME_END[sizeof(CMD_FRAME_END)]);
 
   data.push_back(lowbyte(len));
   data.push_back(highbyte(len));

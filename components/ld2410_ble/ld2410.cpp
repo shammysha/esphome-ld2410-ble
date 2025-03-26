@@ -25,8 +25,6 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
       if (param->open.status == ESP_GATT_OK) {
         ESP_LOGI(TAG, "Connected successfully!");
 
-        this->conn_id_ = param->open.conn_id;
-
         auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
         if (chr == nullptr) {
           ESP_LOGE(TAG, "[%s] No command service found at device. Does it really LD2410?", this->parent()->address_str().c_str());

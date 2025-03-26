@@ -24,8 +24,6 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
         ESP_LOGI(TAG, "Connected successfully!");
-
-        this->node_state = espbt::ClientState::ESTABLISHED;
         this->set_permissions();
       }
       break;
@@ -80,6 +78,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
 
+      this->node_state = espbt::ClientState::ESTABLISHED;
       break;
     }
 

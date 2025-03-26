@@ -180,7 +180,7 @@ void LD2410BLEComponent::restart_and_read_all_info() {
 
 void LD2410BLEComponent::loop() {}
 
-void LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_value, int command_value_len) {
+bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_value, int command_value_len) {
   ESP_LOGV(TAG, "Sending COMMAND %02X", command);
 
   int len = 2;

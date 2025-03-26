@@ -203,11 +203,11 @@ void LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
   data.insert(data.end(), postamble.begin(), postamble.end());
 
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
-    ESPD_LOGE(TAG, "Cannot write to BLE characteristic - not connected");
+    ESP_LOGE(TAG, "Cannot write to BLE characteristic - not connected");
     return false;
   }
 
-  ESPD_LOGVV(TAG, "Will write %d bytes: %s", value.size(), format_hex_pretty(value).c_str());
+  ESP_LOGVV(TAG, "Will write %d bytes: %s", value.size(), format_hex_pretty(value).c_str());
 
   esp_err_t err = esp_ble_gattc_write_char(
       this->parent()->get_gattc_if(),
@@ -220,7 +220,7 @@ void LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
   );
 
   if (err != ESP_OK) {
-    ESPD_LOGE(TAG, "Error writing to characteristic: %s!", esp_err_to_name(err));
+    ESP_LOGE(TAG, "Error writing to characteristic: %s!", esp_err_to_name(err));
     return false;
   }
   return true;

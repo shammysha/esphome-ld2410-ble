@@ -22,7 +22,7 @@
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
-#include "esphome/components/uart/uart.h"
+#include "esphome/components/ble_client/ble_client.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 

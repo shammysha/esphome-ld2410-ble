@@ -435,12 +435,6 @@ bool LD2410BLEComponent::handle_ack_data_(uint8_t *buffer, int len) {
     case lowbyte(CMD_DISABLE_CONF):
       ESP_LOGV(TAG, "Handled Disabled conf command");
       break;
-    case lowbyte(CMD_SET_BAUD_RATE):
-      ESP_LOGV(TAG, "Handled baud rate change command");
-#ifdef USE_SELECT
-      if (this->baud_rate_select_ != nullptr) {
-        ESP_LOGE(TAG, "Change baud rate component config to %s and reinstall", this->baud_rate_select_->state.c_str());
-      }
 #endif
       break;
     case lowbyte(CMD_VERSION):

@@ -34,9 +34,8 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
     }
 
     case ESP_GATTC_DISCONNECT_EVT: {
-      this->handle_ = 0;
-      this->acp_handle_ = 0;
-      this->cccd_handle_ = 0;
+      this->char_command_handle_ = 0;
+      this->char_notify_handle_ = 0;
       ESP_LOGW(TAG, "Disconnected!");
       break;
     }

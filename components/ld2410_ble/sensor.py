@@ -15,7 +15,7 @@ from esphome.const import (
 )
 from . import CONF_LD2410_ID, LD2410BLEComponent
 
-DEPENDENCIES = ["ld2410"]
+DEPENDENCIES = ["ld2410_ble"]
 CONF_MOVING_DISTANCE = "moving_distance"
 CONF_STILL_DISTANCE = "still_distance"
 CONF_MOVING_ENERGY = "moving_energy"

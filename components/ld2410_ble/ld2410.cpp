@@ -60,8 +60,8 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
     }
 
     case ESP_GATTC_READ_CHAR_EVT: {
-      if (param->read.conn_id != this->parent()->get_conn_id())
-        break;
+//      if (param->read.conn_id != this->parent()->get_conn_id())
+//        break;
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGE(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
         break;

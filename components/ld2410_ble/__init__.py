@@ -17,7 +17,7 @@ CONF_LD2410_ID = "ld2410_id"
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LD2410BLEComponent),
-        cv.Optional(CONF_PASSWORD, default="HiLink"): cv.string_strict6
+        cv.Optional(CONF_PASSWORD, default="HiLink"): cv.string_strict
     }
     .extend(ble_client.BLE_CLIENT_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)

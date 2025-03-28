@@ -39,13 +39,6 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       esphome::ble_client::BLECharacteristic *chr;
 
-      chr = this->parent()->get_characteristic(this->service_uuid_, this->char_notify_uuid_);
-      if (chr == nullptr) {
-        ESP_LOGE(TAG, "[%s] No notify service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
-        break;
-      }
-      this->char_notify_handle_ = chr->handle;
-
       chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
       if (chr == nullptr) {
         ESP_LOGE(TAG, "[%s] No command service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
@@ -53,6 +46,12 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
       }
       this->char_command_handle_ = chr->handle;
 
+      chr = this->parent()->get_characteristic(this->service_uuid_, this->char_notify_uuid_);
+      if (chr == nullptr) {
+        ESP_LOGE(TAG, "[%s] No notify service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
+        break;
+      }
+      this->char_notify_handle_ = chr->handle;
 
       auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(), this->parent()->get_remote_bda(), this->char_notify_handle_);
 
@@ -64,12 +63,15 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
     }
 
     case ESP_GATTC_READ_CHAR_EVT: {
-      if (param->read.conn_id != this->parent()->get_conn_id())
+      if (param->read.conn_id != this->parent()->get_conn_id()) {
         break;
+      }
+
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGE(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
         break;
       }
+
       if (param->read.handle == this->char_notify_handle_) {
         this->handle_ack_data_(param->read.value, param->read.value_len);
       }
@@ -77,7 +79,6 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
     }
 
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-
       this->node_state = espbt::ClientState::ESTABLISHED;
       break;
     }
@@ -170,6 +171,9 @@ void LD2410BLEComponent::setup() {
   ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
   ESP_LOGCONFIG(TAG, "Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
   ESP_LOGCONFIG(TAG, "LD2410 setup complete.");
+
+  this->parent()->set_enabled(true);
+  this->parent()->connect();
 }
 
 void LD2410BLEComponent::read_all_info() {

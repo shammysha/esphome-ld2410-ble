@@ -109,6 +109,12 @@ void LD2410BLEComponent::update() {
     } else {
       ESP_LOGW(TAG, "Connection in progress");
     }
+  } else {
+    ESP_LOGCONFIG(TAG, "Setting up LD2410...");
+    this->read_all_info();
+    ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
+    ESP_LOGCONFIG(TAG, "Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
+    ESP_LOGCONFIG(TAG, "LD2410 setup complete.");
   }
 }
 
@@ -168,12 +174,6 @@ void LD2410BLEComponent::dump_config() {
 }
 
 void LD2410BLEComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up LD2410...");
-  this->read_all_info();
-  ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
-  ESP_LOGCONFIG(TAG, "Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
-  ESP_LOGCONFIG(TAG, "LD2410 setup complete.");
-
   this->parent()->set_enabled(true);
   this->parent()->connect();
 }
@@ -186,12 +186,6 @@ void LD2410BLEComponent::read_all_info() {
   this->get_light_control_();
   this->query_parameters_();
   this->set_config_mode_(false);
-#ifdef USE_SELECT
-  const auto baud_rate = std::to_string(this->parent_->get_baud_rate());
-  if (this->baud_rate_select_ != nullptr && this->baud_rate_select_->state != baud_rate) {
-    this->baud_rate_select_->publish_state(baud_rate);
-  }
-#endif
 }
 
 void LD2410BLEComponent::restart_and_read_all_info() {

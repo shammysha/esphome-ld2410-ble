@@ -227,7 +227,7 @@ bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
     return false;
   }
 */
-  ESP_LOGV(TAG, "Will write %d bytes: %s", data.size(), format_hex_pretty(data.data()).c_str());
+  ESP_LOGV(TAG, "Will write %d bytes: %s", data.size(), format_hex_pretty(data).c_str());
 
   esp_err_t err = esp_ble_gattc_write_char(
       this->parent()->get_gattc_if(),

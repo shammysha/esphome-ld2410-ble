@@ -20,7 +20,9 @@ static const char *const TAG = "ld2410";
 
 void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
   ESP_LOGI(TAG, "Event received: %d", event);
+
   switch (event) {
+
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
         ESP_LOGI(TAG, "Connected successfully!");
@@ -225,7 +227,7 @@ bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
     return false;
   }
 */
-  ESP_LOGV(TAG, "Will write %d bytes: %s", sizeof(command_value), format_hex_pretty(*command_value).c_str());
+  ESP_LOGV(TAG, "Will write %d bytes: %s", data.size(), format_hex_pretty(data.data()).c_str());
 
   esp_err_t err = esp_ble_gattc_write_char(
       this->parent()->get_gattc_if(),

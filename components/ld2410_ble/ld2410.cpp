@@ -31,6 +31,11 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
       break;
     }
 
+    case ESP_GATTC_CLOSE_EVT: {
+      ESP_LOGW(TAG, "Disconnected!");
+      break;
+    }
+
     case ESP_GATTC_DISCONNECT_EVT: {
       this->char_command_handle_ = 0;
       this->char_notify_handle_ = 0;
@@ -65,10 +70,6 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
     }
 
     case ESP_GATTC_READ_CHAR_EVT: {
-      if (param->read.conn_id != this->parent()->get_conn_id()) {
-        break;
-      }
-
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGE(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
         break;
@@ -81,14 +82,18 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
     }
 
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      this->node_state = espbt::ClientState::ESTABLISHED;
+      if (param->reg_for_notify.handle == this->char_notify_handle_) {
+        if (param->reg_for_notify.status != ESP_GATT_OK) {
+          ESP_LOGW(TAG, "Error registering for notifications at handle %d, status=%d", param->reg_for_notify.handle, param->reg_for_notify.status);
+          break;
+        }
+        this->node_state = espbt::ClientState::ESTABLISHED;
+        ESP_LOGD(TAG, "Register for notify on %s complete", this->char_uuid_.to_string().c_str());
+      }
       break;
     }
 
     case ESP_GATTC_NOTIFY_EVT: {
-      if (param->notify.conn_id != this->parent()->get_conn_id()) {
-        break;
-      }
       if (param->notify.handle == this->char_notify_handle_) {
         this->handle_periodic_data_(param->notify.value, param->notify.value_len);
       }

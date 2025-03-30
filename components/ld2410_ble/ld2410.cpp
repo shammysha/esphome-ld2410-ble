@@ -88,7 +88,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
           break;
         }
         this->node_state = espbt::ClientState::ESTABLISHED;
-        ESP_LOGD(TAG, "Register for notify on %s complete", this->char_uuid_.to_string().c_str());
+        ESP_LOGD(TAG, "Register for notify on %s complete", this->char_notify_uuid_.to_string().c_str());
       }
       break;
     }

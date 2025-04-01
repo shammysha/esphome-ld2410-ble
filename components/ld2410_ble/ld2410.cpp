@@ -87,7 +87,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
           ESP_LOGW(TAG, "Error registering for notifications at handle %d, status=%d", param->reg_for_notify.handle, param->reg_for_notify.status);
           break;
         }
-        this->node_state = espbt::ClientState::ESTABLISHED;
+//        this->node_state = espbt::ClientState::ESTABLISHED;
         ESP_LOGD(TAG, "Register for notify on %s complete", this->char_notify_uuid_.to_string().c_str());
       }
       break;

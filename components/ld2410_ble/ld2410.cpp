@@ -20,12 +20,14 @@ static const char *const TAG = "ld2410";
 
 void LD2410BLEComponent::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   ESP_LOGI(TAG, "GAP Event received: %d", event);
+
 }
 
 void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
   ESP_LOGI(TAG, "GATTS Event received: %d", event);
 
   switch (event) {
+
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
         ESP_LOGI(TAG, "Connected successfully!");
@@ -232,6 +234,8 @@ bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
 
   ESP_LOGV(TAG, "Will write %d bytes: %s", data.size(), format_hex_pretty(data).c_str());
 
+  return this->parent()->write(data);
+  /*
   esp_err_t err = esp_ble_gattc_write_char(
       this->parent()->get_gattc_if(),
       this->parent()->get_conn_id(),
@@ -246,7 +250,9 @@ bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
     ESP_LOGE(TAG, "Error writing to characteristic: %s!", esp_err_to_name(err));
     return false;
   }
+
   return true;
+  */
 }
 
 void LD2410BLEComponent::handle_periodic_data_(uint8_t *buffer, int len) {

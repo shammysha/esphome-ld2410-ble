@@ -213,8 +213,6 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
   esp32_ble_tracker::ESPBTUUID char_notify_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff1-0000-1000-8000-00805f9b34fb");
   esp32_ble_tracker::ESPBTUUID char_command_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff2-0000-1000-8000-00805f9b34fb");
 
-  esp_gatt_write_type_t write_type_{ESP_GATT_WRITE_TYPE_NO_RSP};
-
   int32_t last_periodic_millis_ = millis();
   int32_t last_engineering_mode_change_millis_ = millis();
   uint16_t throttle_;

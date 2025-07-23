@@ -234,8 +234,6 @@ bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
 
   ESP_LOGV(TAG, "Will write %d bytes: %s", data.size(), format_hex_pretty(data).c_str());
 
-  return this->parent()->write(data);
-  /*
   esp_err_t err = esp_ble_gattc_write_char(
       this->parent()->get_gattc_if(),
       this->parent()->get_conn_id(),
@@ -252,7 +250,6 @@ bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
   }
 
   return true;
-  */
 }
 
 void LD2410BLEComponent::handle_periodic_data_(uint8_t *buffer, int len) {

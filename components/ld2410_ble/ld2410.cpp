@@ -37,7 +37,6 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         break;
       }
 
-      this->char_command_handle_ = chr->handle;
       this->char_props_ = chr->properties;
       if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE) {
         this->write_type_ = ESP_GATT_WRITE_TYPE_RSP;
@@ -50,7 +49,24 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         break;
       }
       this->node_state = espbt::ClientState::ESTABLISHED;
-      ESP_LOGI(TAG, "Found characteristic %s on device %s", this->char_command_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
+      ESP_LOGI(TAG, "Found command characteristic %s on device %s", this->char_command_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
+
+      this->node_state = espbt::ClientState::ESTABLISHED;
+
+      chr = this->parent()->get_characteristic(this->service_uuid_, this->char_notify_uuid_);
+      if (chr == nullptr) {
+        ESP_LOGE(TAG, "[%s] No notify service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
+        break;
+      }
+
+      auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(), this->parent()->get_remote_bda(), chr->handle);
+      if (status) {
+        ESP_LOGE(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
+        break;
+      }
+
+      ESP_LOGI(TAG, "Found notify characteristic %s on device %s", this->char_notify_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
+
       break;
     }
 
@@ -59,6 +75,9 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         ESP_LOGI(TAG, "Connected successfully!");
         this->node_state = espbt::ClientState::ESTABLISHED;
         this->set_permissions();
+        this->set_config_mode_();
+        this->set_engconfig_mode_();
+
       }
       break;
     }

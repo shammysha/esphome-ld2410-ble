@@ -238,8 +238,8 @@ bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
       this->parent()->get_gattc_if(),
       this->parent()->get_conn_id(),
       this->char_command_handle_,
-      sizeof(command_value),
-      (uint8_t*) command_value,
+      data.size(),
+      const_cast<uint8_t *>(data.data()),
       this->write_type_,
       ESP_GATT_AUTH_REQ_NONE
   );

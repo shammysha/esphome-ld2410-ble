@@ -230,9 +230,6 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
   float light_threshold_ = -1;
   std::string password_;
 
-  bool notify_ = true;
-
-
 #ifdef USE_NUMBER
   std::vector<number::Number *> gate_still_threshold_numbers_ = std::vector<number::Number *>(9);
   std::vector<number::Number *> gate_move_threshold_numbers_ = std::vector<number::Number *>(9);

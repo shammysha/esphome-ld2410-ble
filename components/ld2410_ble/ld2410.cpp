@@ -28,6 +28,32 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 
   switch (event) {
 
+    case ESP_GATTC_SEARCH_CMPL_EVT: {
+      esphome::ble_client::BLECharacteristic *chr;
+
+      chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
+      if (chr == nullptr) {
+        ESP_LOGE(TAG, "[%s] No command service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
+        break;
+      }
+
+      this->char_command_handle_ = chr->handle;
+      this->char_props_ = chr->properties;
+      if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE) {
+        this->write_type_ = ESP_GATT_WRITE_TYPE_RSP;
+        ESP_LOGI(TAG, "Write type: ESP_GATT_WRITE_TYPE_RSP");
+      } else if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE_NR) {
+        this->write_type_ = ESP_GATT_WRITE_TYPE_NO_RSP;
+        ESP_LOGI(TAG, "Write type: ESP_GATT_WRITE_TYPE_NO_RSP");
+      } else {
+        ESP_LOGI(TAG, "Characteristic %s does not allow writing", this->char_command_uuid_.to_string().c_str());
+        break;
+      }
+      this->node_state = espbt::ClientState::ESTABLISHED;
+      ESP_LOGI(TAG, "Found characteristic %s on device %s", this->char_command_uuid_.to_string().c_str(), ble_client_->address_str().c_str());
+      break;
+    }
+
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
         ESP_LOGI(TAG, "Connected successfully!");

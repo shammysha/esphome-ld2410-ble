@@ -208,6 +208,9 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
   void get_light_control_();
   void restart_();
 
+  esp_gatt_char_prop_t char_props_{};
+  esp_gatt_write_type_t write_type_{};
+
 
   esp32_ble_tracker::ESPBTUUID service_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff0-0000-1000-8000-00805f9b34fb");
   esp32_ble_tracker::ESPBTUUID char_notify_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff1-0000-1000-8000-00805f9b34fb");

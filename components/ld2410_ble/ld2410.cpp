@@ -6,9 +6,7 @@
 #include "esphome/components/number/number.h"
 #endif
 
-#ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
-#endif
 
 #define highbyte(val) (uint8_t)((val) >> 8)
 #define lowbyte(val) (uint8_t)((val) &0xff)
@@ -191,7 +189,7 @@ void LD2410BLEComponent::dump_config() {
   LOG_BUTTON("  ", "RestartButton", this->restart_button_);
   LOG_BUTTON("  ", "QueryButton", this->query_button_);
 #endif
-#ifdef USE_SENSOR
+
   LOG_SENSOR("  ", "LightSensor", this->light_sensor_);
   LOG_SENSOR("  ", "MovingTargetDistanceSensor", this->moving_target_distance_sensor_);
   LOG_SENSOR("  ", "StillTargetDistanceSensor", this->still_target_distance_sensor_);
@@ -204,7 +202,7 @@ void LD2410BLEComponent::dump_config() {
   for (sensor::Sensor *s : this->gate_move_sensors_) {
     LOG_SENSOR("  ", "NthGateMoveSesnsor", s);
   }
-#endif
+
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "VersionTextSensor", this->version_text_sensor_);
   LOG_TEXT_SENSOR("  ", "MacTextSensor", this->mac_text_sensor_);

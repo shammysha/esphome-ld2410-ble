@@ -5,7 +5,7 @@ from esphome.const import CONF_ID, CONF_THROTTLE, CONF_TIMEOUT, CONF_PASSWORD
 from esphome import automation
 from esphome.automation import maybe_simple_id
 
-DEPENDENCIES = ["ble_client"]
+DEPENDENCIES = ["ble_client", "sensor"]
 CODEOWNERS = ["@shammysha", "@sebcaps", "@regevbr"]
 MULTI_CONF = True
 

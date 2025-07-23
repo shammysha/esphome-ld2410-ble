@@ -154,7 +154,6 @@ void LD2410BLEComponent::update() {
 
     if (status) {
       this->status_set_warning();
-      this->publish_state(NAN);
       ESP_LOGW(TAG, "Error sending read request for sensor, status=%d", status);
     }
 

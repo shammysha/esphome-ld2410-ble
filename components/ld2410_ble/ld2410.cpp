@@ -105,7 +105,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         break;
       }
 
-      if (param->read.handle == this->char_notify_handle_) {
+      if (param->read.handle == this->char_command_handle_) {
         this->handle_ack_data_(param->read.value, param->read.value_len);
       }
       break;

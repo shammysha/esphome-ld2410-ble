@@ -37,6 +37,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         break;
       }
 
+      this->char_command_handle_ = chr->handle;
       this->char_props_ = chr->properties;
       if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE) {
         this->write_type_ = ESP_GATT_WRITE_TYPE_RSP;
@@ -58,6 +59,8 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         ESP_LOGE(TAG, "[%s] No notify service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
         break;
       }
+
+      this->char_notify_handle_ = chr->handle;
 
       auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(), this->parent()->get_remote_bda(), chr->handle);
       if (status) {

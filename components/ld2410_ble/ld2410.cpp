@@ -75,6 +75,9 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         ESP_LOGI(TAG, "Connected successfully!");
         this->node_state = espbt::ClientState::ESTABLISHED;
         this->set_permissions();
+        this->set_config_mode_(true);
+        this->set_engineering_mode(true);
+
       }
       break;
     }

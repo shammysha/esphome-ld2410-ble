@@ -104,13 +104,13 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         ESP_LOGE(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
         break;
       }
-
+/*
       if (param->read.handle == this->char_command_handle_) {
         this->handle_ack_data_(param->read.value, param->read.value_len);
       }
       break;
     }
-
+*/
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
       if (param->reg_for_notify.handle == this->char_notify_handle_) {
         if (param->reg_for_notify.status != ESP_GATT_OK) {

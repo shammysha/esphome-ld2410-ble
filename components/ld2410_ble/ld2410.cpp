@@ -141,6 +141,23 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 
 void LD2410BLEComponent::update() {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
+    ESP_LOGW(TAG, "[%s] Cannot poll, not connected", this->get_name().c_str());
+    return;
+  }
+  if (this->handle == 0) {
+    ESP_LOGW(TAG, "[%s] Cannot poll, no service or characteristic found", this->get_name().c_str());
+    return;
+  }
+
+  auto status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->handle,
+                                        ESP_GATT_AUTH_REQ_NONE);
+  if (status) {
+    this->status_set_warning();
+    this->publish_state(NAN);
+    ESP_LOGW(TAG, "[%s] Error sending read request for sensor, status=%d", this->get_name().c_str(), status);
+  }
+/*
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
     if (!this->parent()->enabled) {
       ESP_LOGW(TAG, "Reconnecting to device");
       this->parent()->set_enabled(true);
@@ -148,7 +165,7 @@ void LD2410BLEComponent::update() {
     } else {
       ESP_LOGW(TAG, "Connection in progress");
     }
-  } else {
+  } else { */
     ESP_LOGCONFIG(TAG, "Setting up LD2410...");
     this->read_all_info();
     ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));

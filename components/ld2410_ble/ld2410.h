@@ -23,6 +23,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 #include "esphome/components/ble_client/ble_client.h"
+#include "esphome/components/ble_client/sensor/ble_sensor.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
@@ -119,6 +120,17 @@ enum PeriodicDataValue : uint8_t { HEAD = 0XAA, END = 0x55, CHECK = 0x00 };
 
 enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
 
+
+
+class LD2410BLESensor : public BLESensor {
+  public:
+    float parse_data_(uint8_t *value, uint16_t value_len) override;
+    void set_parent(LD2410BLEComponent);
+
+  private:
+    parent_ = null;
+};
+
 //  char cmd[2] = {enable ? 0xFF : 0xFE, 0x00};
 class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClientNode {
 #ifdef USE_SENSOR
@@ -181,6 +193,8 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
 
   void set_password(const std::string &password) { this->password_ = password; }
 
+  BLESensor:L
+
 #ifdef USE_NUMBER
   void set_gate_still_threshold_number(int gate, number::Number *n);
   void set_gate_move_threshold_number(int gate, number::Number *n);
@@ -237,6 +251,7 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
   std::vector<sensor::Sensor *> gate_still_sensors_ = std::vector<sensor::Sensor *>(9);
   std::vector<sensor::Sensor *> gate_move_sensors_ = std::vector<sensor::Sensor *>(9);
 #endif
+
 };
 
 }  // namespace ld2410

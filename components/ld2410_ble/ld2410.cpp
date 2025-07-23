@@ -6,7 +6,9 @@
 #include "esphome/components/number/number.h"
 #endif
 
+#ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
 
 #define highbyte(val) (uint8_t)((val) >> 8)
 #define lowbyte(val) (uint8_t)((val) &0xff)
@@ -154,7 +156,7 @@ void LD2410BLEComponent::update() {
     this->publish_state(NAN);
     ESP_LOGW(TAG, "[%s] Error sending read request for sensor, status=%d", this->get_name().c_str(), status);
   }
-/*
+
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     if (!this->parent()->enabled) {
       ESP_LOGW(TAG, "Reconnecting to device");
@@ -163,7 +165,7 @@ void LD2410BLEComponent::update() {
     } else {
       ESP_LOGW(TAG, "Connection in progress");
     }
-  } else { */
+  } else {
     ESP_LOGCONFIG(TAG, "Setting up LD2410...");
     this->read_all_info();
     ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
@@ -189,7 +191,7 @@ void LD2410BLEComponent::dump_config() {
   LOG_BUTTON("  ", "RestartButton", this->restart_button_);
   LOG_BUTTON("  ", "QueryButton", this->query_button_);
 #endif
-
+#ifdef USE_SENSOR
   LOG_SENSOR("  ", "LightSensor", this->light_sensor_);
   LOG_SENSOR("  ", "MovingTargetDistanceSensor", this->moving_target_distance_sensor_);
   LOG_SENSOR("  ", "StillTargetDistanceSensor", this->still_target_distance_sensor_);
@@ -202,7 +204,7 @@ void LD2410BLEComponent::dump_config() {
   for (sensor::Sensor *s : this->gate_move_sensors_) {
     LOG_SENSOR("  ", "NthGateMoveSesnsor", s);
   }
-
+#endif
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "VersionTextSensor", this->version_text_sensor_);
   LOG_TEXT_SENSOR("  ", "MacTextSensor", this->mac_text_sensor_);

@@ -4,7 +4,9 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
@@ -117,26 +119,18 @@ enum PeriodicDataValue : uint8_t { HEAD = 0XAA, END = 0x55, CHECK = 0x00 };
 
 enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
 
-
-
-class LD2410BLESensor : public ble_client::BLESensor {
-  public:
-    float parse_data_(uint8_t *value, uint16_t value_len) override;
-    void set_parent(LD2410BLEComponent);
-
-  private:
-    parent_ = null;
-};
-
 //  char cmd[2] = {enable ? 0xFF : 0xFE, 0x00};
+
+
 class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClientNode {
+#ifdef USE_SENSOR
   SUB_SENSOR(moving_target_distance)
   SUB_SENSOR(still_target_distance)
   SUB_SENSOR(moving_target_energy)
   SUB_SENSOR(still_target_energy)
   SUB_SENSOR(light)
   SUB_SENSOR(detection_distance)
-
+#endif
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(target)
   SUB_BINARY_SENSOR(moving_target)
@@ -189,8 +183,6 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
 
   void set_password(const std::string &password) { this->password_ = password; }
 
-  BLESensor:L
-
 #ifdef USE_NUMBER
   void set_gate_still_threshold_number(int gate, number::Number *n);
   void set_gate_move_threshold_number(int gate, number::Number *n);
@@ -198,8 +190,10 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
   void set_gate_threshold(uint8_t gate);
 #endif
 
+#ifdef USE_SENSOR
   void set_gate_move_sensor(int gate, sensor::Sensor *s);
   void set_gate_still_sensor(int gate, sensor::Sensor *s);
+#endif
 
  protected:
   int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
@@ -241,9 +235,11 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
   std::vector<number::Number *> gate_still_threshold_numbers_ = std::vector<number::Number *>(9);
   std::vector<number::Number *> gate_move_threshold_numbers_ = std::vector<number::Number *>(9);
 #endif
-
+#ifdef USE_SENSOR
   std::vector<sensor::Sensor *> gate_still_sensors_ = std::vector<sensor::Sensor *>(9);
   std::vector<sensor::Sensor *> gate_move_sensors_ = std::vector<sensor::Sensor *>(9);
+#endif
+
 };
 
 }  // namespace ld2410

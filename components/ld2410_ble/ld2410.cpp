@@ -48,7 +48,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         ESP_LOGI(TAG, "Characteristic %s does not allow writing", this->char_command_uuid_.to_string().c_str());
         break;
       }
-      this->node_state = espbt::ClientState::ESTABLISHED;
+
       ESP_LOGI(TAG, "Found command characteristic %s on device %s", this->char_command_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
 
       this->node_state = espbt::ClientState::ESTABLISHED;

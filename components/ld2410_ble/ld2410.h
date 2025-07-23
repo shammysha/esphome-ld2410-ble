@@ -119,7 +119,7 @@ enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
 
 
 
-class LD2410BLESensor : public BLESensor {
+class LD2410BLESensor : public ble_client::BLESensor {
   public:
     float parse_data_(uint8_t *value, uint16_t value_len) override;
     void set_parent(LD2410BLEComponent);

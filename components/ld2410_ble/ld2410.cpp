@@ -50,7 +50,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         break;
       }
       this->node_state = espbt::ClientState::ESTABLISHED;
-      ESP_LOGI(TAG, "Found characteristic %s on device %s", this->char_command_uuid_.to_string().c_str(), ble_client_->address_str().c_str());
+      ESP_LOGI(TAG, "Found characteristic %s on device %s", this->char_command_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
       break;
     }
 

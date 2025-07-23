@@ -257,10 +257,7 @@ bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
   }
 
   ESP_LOGV(TAG, "Will write %d bytes: %s", data.size(), format_hex_pretty(data).c_str());
-  this->parent()->ble_write(
-      this->service_uuid_, this->char_notify_uuid_, this->service_uuid, const_cast<uint8_t *>(data.data())
-  )
-  /*
+
   esp_err_t err = esp_ble_gattc_write_char(
       this->parent()->get_gattc_if(),
       this->parent()->get_conn_id(),
@@ -275,7 +272,7 @@ bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
     ESP_LOGE(TAG, "Error writing to characteristic: %s!", esp_err_to_name(err));
     return false;
   }
-*/
+
   return true;
 }
 

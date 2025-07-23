@@ -19,7 +19,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(LD2410BLEComponent),
         cv.Optional(CONF_PASSWORD, default="HiLink"): cv.string_strict
     }
-).extend(cv.polling_component_schema("30sec")).extend(ble_client.BLE_CLIENT_SCHEMA)
+).extend(cv.polling_component_schema("1sec")).extend(ble_client.BLE_CLIENT_SCHEMA)
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

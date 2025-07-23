@@ -26,7 +26,6 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
   ESP_LOGI(TAG, "GATTS Event received: %d", event);
 
   switch (event) {
-
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
         ESP_LOGI(TAG, "Connected successfully!");

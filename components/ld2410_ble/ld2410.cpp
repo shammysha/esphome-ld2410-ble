@@ -52,9 +52,6 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 
       ESP_LOGI(TAG, "Found command characteristic %s on device %s", this->char_command_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
 
-      this->node_state = espbt::ClientState::ESTABLISHED;
-      this->set_permissions();
-
       chr = this->parent()->get_characteristic(this->service_uuid_, this->char_notify_uuid_);
       if (chr == nullptr) {
         ESP_LOGE(TAG, "[%s] No notify service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
@@ -70,6 +67,9 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
       }
 
       ESP_LOGI(TAG, "Found notify characteristic %s on device %s", this->char_notify_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
+
+      this->node_state = espbt::ClientState::ESTABLISHED;
+      this->set_permissions();
 
       break;
     }

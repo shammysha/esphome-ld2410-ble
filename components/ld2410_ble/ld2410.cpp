@@ -140,7 +140,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 }
 
 void LD2410BLEComponent::update() {
-  this->parent()->set_enable_notify(true);
+  this->pset_enable_notify(true);
 
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     if (!this->parent()->enabled) {

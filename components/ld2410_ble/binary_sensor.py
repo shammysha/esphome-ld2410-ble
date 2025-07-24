@@ -5,7 +5,7 @@ from esphome.const import (
     DEVICE_CLASS_MOTION,
     DEVICE_CLASS_OCCUPANCY,
     DEVICE_CLASS_PRESENCE,
-    DEVICE_CLASS_CONNECTIVITY,    
+    DEVICE_CLASS_CONNECTIVITY,  
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_MOTION_SENSOR,
     ICON_ACCOUNT,
@@ -13,12 +13,7 @@ from esphome.const import (
     CONF_HAS_TARGET,
     CONF_HAS_MOVING_TARGET,
     CONF_HAS_STILL_TARGET,
-    CONF_DISABLED_BY_DEFAULT,
-    CONF_DEVICE_CLASS,
-    CONF_ENTITY_CATEGORY,
-    CONF_ICON,
-    CONF_ID   
-         
+    CONF_DISABLED_BY_DEFAULT
 )
 from . import CONF_LD2410_ID, LD2410BLEComponent
 
@@ -51,12 +46,13 @@ CONFIG_SCHEMA = {
 async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
     
-    sens = await binary_sensor.new_binary_sensor({
-        CONF_ID: cv.use_id(LD2410BLEComponent),
-        CONF_DEVICE_CLASS: DEVICE_CLASS_CONNECTIVITY,
-        CONF_ENTITY_CATEGORY: ENTITY_CATEGORY_DIAGNOSTIC,            
-        CONF_ICON: ICON_BLUETOOTH,
-    })
+    sens = await binary_sensor.new_binary_sensor(
+        binary_sensor.binary_sensor_schema(
+            device_class=DEVICE_CLASS_CONNECTIVITY,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,            
+            icon=ICON_BLUETOOTH,
+        )
+    )
     cg.add(ld2410_component.set_ble_connection_sensor(sens))    
     
     if has_target_config := config.get(CONF_HAS_TARGET):

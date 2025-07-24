@@ -216,11 +216,6 @@ void LD2410BLEComponent::dump_config() {
 #endif
 }
 
-void LD2410BLEComponent::setup() {
-  this->parent()->set_enabled(true);
-  this->parent()->connect();
-}
-
 void LD2410BLEComponent::read_all_info() {
   this->set_config_mode_(true);
   this->get_version_();

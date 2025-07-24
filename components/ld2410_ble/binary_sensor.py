@@ -8,14 +8,18 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_MOTION_SENSOR,
     ICON_ACCOUNT,
+    ICON_BLUETOOTH,     
     CONF_HAS_TARGET,
     CONF_HAS_MOVING_TARGET,
     CONF_HAS_STILL_TARGET,
+    CONF_DISABLED_BY_DEFAULT
 )
 from . import CONF_LD2410_ID, LD2410BLEComponent
+from homeassistant.components.binary_sensor import DEVICE_CLASS_CONNECTIVITY
 
 DEPENDENCIES = ["ld2410_ble"]
 CONF_OUT_PIN_PRESENCE_STATUS = "out_pin_presence_status"
+CONF_CONNECTION = "ble_status"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410BLEComponent),
@@ -41,6 +45,16 @@ CONFIG_SCHEMA = {
 
 async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
+    
+    sens = await binary_sensor.new_binary_sensor(
+        binary_sensor.binary_sensor_schema(
+            device_class=DEVICE_CLASS_CONNECTIVITY,
+            icon=ICON_BLUETOOTH,
+            CONF_DISABLED_BY_DEFAULT=False
+        )
+    )
+    cg.add(ld2410_component.set_ble_connection_sensor(sens))    
+    
     if has_target_config := config.get(CONF_HAS_TARGET):
         sens = await binary_sensor.new_binary_sensor(has_target_config)
         cg.add(ld2410_component.set_target_binary_sensor(sens))

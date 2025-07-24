@@ -70,7 +70,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 
       this->node_state = espbt::ClientState::ESTABLISHED;
       if (this->ble_status_binary_sensor_ != nullptr) {
-        this->ble_connection_binary_sensor_->publish_state(true);
+        this->ble_status_binary_sensor_->publish_state(true);
       }
 
       this->set_permissions();
@@ -83,7 +83,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
       ESP_LOGW(TAG, "Disconnected!");
 
       if (this->ble_status_binary_sensor_ != nullptr) {
-        this->ble_connection_binary_sensor_->publish_state(false);
+        this->ble_status_binary_sensor_->publish_state(false);
       }
       break;
     }

@@ -30,7 +30,8 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
   switch (event) {
 
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      chr = this->parent()->get_characteristic(this->service_uuid_, this->char_notify_uuid_);
+      auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_notify_uuid_);
+
       if (chr == nullptr) {
         ESP_LOGE(TAG, "[%s] No notify service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
         break;
@@ -46,13 +47,13 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 
       ESP_LOGI(TAG, "Found notify characteristic %s on device %s", this->char_notify_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
 
-      auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
-      if (chr == nullptr) {
+      auto *cmd__chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
+      if (cmd__chr == nullptr) {
         ESP_LOGI("TAG", "Characteristic %s was not found in service %s", this->char_command_uuid_.to_string().c_str(), this->service_uuid_.to_string().c_str());
         break;
       }
-      this->char_handle = chr->handle;
-      this->char_props_ = chr->properties;
+      this->char_handle = cmd__chr->handle;
+      this->char_props_ = cmd__chr->properties;
 
       if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE) {
         this->write_type_ = ESP_GATT_WRITE_TYPE_RSP;

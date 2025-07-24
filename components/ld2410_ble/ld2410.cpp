@@ -83,7 +83,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
     case ESP_GATTC_OPEN_EVT: {
       ESP_LOGW(TAG, "Connected!");
       if (param->open.status == ESP_GATT_OK) {
-        ESP_LOGI(TAG, "[%s] Connected successfully!", this->get_name().c_str());
+        ESP_LOGI(TAG, "Connected successfully!");
         break;
       }
       break;

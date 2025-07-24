@@ -136,7 +136,7 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
   SUB_BINARY_SENSOR(moving_target)
   SUB_BINARY_SENSOR(still_target)
   SUB_BINARY_SENSOR(out_pin_presence_status)
-  SUB_BINARY_SENSOR(ble_connection)
+  SUB_BINARY_SENSOR(ble_status)
 #endif
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(version)

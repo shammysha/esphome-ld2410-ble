@@ -13,13 +13,15 @@ from esphome.const import (
     CONF_HAS_TARGET,
     CONF_HAS_MOVING_TARGET,
     CONF_HAS_STILL_TARGET,
-    CONF_DISABLED_BY_DEFAULT
+    CONF_DISABLED_BY_DEFAULT,
+    CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY
 )
 from . import CONF_LD2410_ID, LD2410BLEComponent
 
 DEPENDENCIES = ["ld2410_ble"]
 CONF_OUT_PIN_PRESENCE_STATUS = "out_pin_presence_status"
-CONF_CONNECTION = "ble_status"
+CONF_BLE_STATUS = "ble_status"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410BLEComponent),
@@ -40,21 +42,21 @@ CONFIG_SCHEMA = {
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         icon=ICON_ACCOUNT,
     ),
+    cv.Optional(CONF_OUT_PIN_PRESENCE_STATUS): binary_sensor.binary_sensor_schema(
+        device_class=DEVICE_CLASS_PRESENCE,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        icon=ICON_ACCOUNT,
+    ),    
+    cv.Optional(CONF_BLE_STATUS): binary_sensor.binary_sensor_schema(
+        device_class=DEVICE_CLASS_CONNECTIVITY,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        icon=ICON_BLUETOOTH,
+    ),      
 }
 
 
 async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
-    
-    sens = await binary_sensor.new_binary_sensor(
-        config,
-        binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_CONNECTIVITY,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,            
-            icon=ICON_BLUETOOTH,
-        )
-    )
-    cg.add(ld2410_component.set_ble_connection_sensor(sens))    
     
     if has_target_config := config.get(CONF_HAS_TARGET):
         sens = await binary_sensor.new_binary_sensor(has_target_config)
@@ -67,4 +69,7 @@ async def to_code(config):
         cg.add(ld2410_component.set_still_target_binary_sensor(sens))
     if out_pin_presence_status_config := config.get(CONF_OUT_PIN_PRESENCE_STATUS):
         sens = await binary_sensor.new_binary_sensor(out_pin_presence_status_config)
-        cg.add(ld2410_component.set_out_pin_presence_status_binary_sensor(sens))
+        cg.add(ld2410_component.set_out_pin_presence_status_binary_sensor(sens))        
+    if ble_status := config.get(CONF_BLE_STATUS):
+        sens = await binary_sensor.new_binary_sensor(ble_status)
+        cg.add(ld2410_component.set_ble_status_binary_sensor(sens))

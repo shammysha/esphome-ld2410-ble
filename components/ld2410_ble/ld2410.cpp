@@ -141,14 +141,12 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 }
 
 void LD2410BLEComponent::update() {
-  if (this->node_state != espbt::ClientState::ESTABLISHED) {
-    if (!this->parent()->enabled) {
+  if (this->node_state == espbt::ClientState::CONNECTING) {
+    ESP_LOGW(TAG, "Connection in progress");
+  } else if (this->node_state != espbt::ClientState::ESTABLISHED) {
       ESP_LOGW(TAG, "Reconnecting to device");
       this->parent()->set_enabled(true);
       this->parent()->connect();
-    } else {
-      ESP_LOGW(TAG, "Connection in progress");
-    }
   } else {
     auto status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_notify_handle_,
                                           ESP_GATT_AUTH_REQ_NONE);

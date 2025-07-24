@@ -27,9 +27,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await ble_client.register_ble_node(var, config)    
     cg.add(var.set_password(config[CONF_PASSWORD]))
-
-
-   
+  
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
     {

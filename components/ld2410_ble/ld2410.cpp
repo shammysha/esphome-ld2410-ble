@@ -30,36 +30,13 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
   switch (event) {
 
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      esphome::ble_client::BLECharacteristic *chr;
-
-      chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
-      if (chr == nullptr) {
-        ESP_LOGE(TAG, "[%s] No command service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
-        break;
-      }
-
-      this->char_command_handle_ = chr->handle;
-      this->char_props_ = chr->properties;
-      if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE) {
-        this->write_type_ = ESP_GATT_WRITE_TYPE_RSP;
-        ESP_LOGI(TAG, "Write type: ESP_GATT_WRITE_TYPE_RSP");
-      } else if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE_NR) {
-        this->write_type_ = ESP_GATT_WRITE_TYPE_NO_RSP;
-        ESP_LOGI(TAG, "Write type: ESP_GATT_WRITE_TYPE_NO_RSP");
-      } else {
-        ESP_LOGI(TAG, "Characteristic %s does not allow writing", this->char_command_uuid_.to_string().c_str());
-        break;
-      }
-
-      ESP_LOGI(TAG, "Found command characteristic %s on device %s", this->char_command_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
-
       chr = this->parent()->get_characteristic(this->service_uuid_, this->char_notify_uuid_);
       if (chr == nullptr) {
         ESP_LOGE(TAG, "[%s] No notify service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
         break;
       }
 
-      this->char_notify_handle_ = chr->handle;
+      this->handle = chr->handle;
 
       auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(), this->parent()->get_remote_bda(), chr->handle);
       if (status) {
@@ -68,6 +45,29 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
       }
 
       ESP_LOGI(TAG, "Found notify characteristic %s on device %s", this->char_notify_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
+
+      auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
+      if (chr == nullptr) {
+        ESP_LOGI("TAG", "Characteristic %s was not found in service %s", this->char_command_uuid_.to_string().c_str(), this->service_uuid_.to_string().c_str());
+        break;
+      }
+      this->char_handle = chr->handle;
+      this->char_props_ = chr->properties;
+
+      if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE) {
+        this->write_type_ = ESP_GATT_WRITE_TYPE_RSP;
+        ESP_LOGI(TAG, "Write type: ESP_GATT_WRITE_TYPE_RSP");
+
+      } else if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE_NR) {
+        this->write_type_ = ESP_GATT_WRITE_TYPE_NO_RSP;
+        ESP_LOGI(TAG, "Write type: ESP_GATT_WRITE_TYPE_NO_RSP");
+
+      } else {
+        ESP_LOGE(TAG, "Characteristic %s does not allow writing", this->char_command_uuid_.to_string().c_str());
+        break;
+      }
+      this->node_state = espbt::ClientState::ESTABLISHED;
+      ESP_LOGD(TAG, "Found command characteristic %s on device %s", this->char_command_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
 
       this->node_state = espbt::ClientState::ESTABLISHED;
       if (this->ble_status_binary_sensor_ != nullptr) {
@@ -107,7 +107,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
       this->handle_ack_data_(param->read.value, param->read.value_len);
 
       /*
-      if (param->read.handle == this->char_command_handle_) {
+      if (param->read.handle == this->char_handle) {
         this->handle_ack_data_(param->read.value, param->read.value_len);
       }
        */
@@ -115,7 +115,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
     }
 
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      if (param->reg_for_notify.handle == this->char_notify_handle_) {
+      if (param->reg_for_notify.handle == this->handle) {
         if (param->reg_for_notify.status != ESP_GATT_OK) {
           ESP_LOGW(TAG, "Error registering for notifications at handle %d, status=%d", param->reg_for_notify.handle, param->reg_for_notify.status);
           break;
@@ -127,7 +127,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
     }
 
     case ESP_GATTC_NOTIFY_EVT: {
-      if (param->notify.handle == this->char_notify_handle_) {
+      if (param->notify.handle == this->handle) {
         this->handle_periodic_data_(param->notify.value, param->notify.value_len);
       }
       break;
@@ -144,7 +144,7 @@ void LD2410BLEComponent::update() {
       this->parent()->set_enabled(true);
       this->parent()->connect();
   } else {
-    auto status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_notify_handle_,
+    auto status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->handle,
                                           ESP_GATT_AUTH_REQ_NONE);
 
     if (status) {
@@ -264,7 +264,7 @@ bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
   esp_err_t err = esp_ble_gattc_write_char(
       this->parent()->get_gattc_if(),
       this->parent()->get_conn_id(),
-      this->char_command_handle_,
+      this->char_handle,
       data.size(),
       const_cast<uint8_t *>(data.data()),
       this->write_type_,

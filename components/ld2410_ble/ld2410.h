@@ -224,8 +224,8 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
   int32_t last_periodic_millis_ = millis();
   int32_t last_engineering_mode_change_millis_ = millis();
   uint16_t throttle_;
-  uint16_t char_notify_handle_;
-  uint16_t char_command_handle_;
+  uint16_t handle;
+  uint16_t char_handle;
   std::string version_;
   std::string mac_;
   std::string out_pin_level_;

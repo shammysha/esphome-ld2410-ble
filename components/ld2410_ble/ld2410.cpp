@@ -18,12 +18,6 @@ namespace ld2410_ble{
 
 static const char *const TAG = "ld2410";
 
-void LD2410BLEComponent::loop() {
-  // Parent BLEClientNode has a loop() method, but this component uses
-  // polling via update() and BLE callbacks so loop isn't needed
-  this->disable_loop();
-}
-
 void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
   ESP_LOGI(TAG, "GATTS Event received: %d", event);
 
@@ -47,13 +41,13 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 
       ESP_LOGI(TAG, "Found notify characteristic %s on device %s", this->char_notify_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
 
-      auto *cmd__chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
-      if (cmd__chr == nullptr) {
+      auto *cmd_chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
+      if (cmd_chr == nullptr) {
         ESP_LOGI("TAG", "Characteristic %s was not found in service %s", this->char_command_uuid_.to_string().c_str(), this->service_uuid_.to_string().c_str());
         break;
       }
-      this->char_handle = cmd__chr->handle;
-      this->char_props_ = cmd__chr->properties;
+      this->char_handle = cmd_chr->handle;
+      this->char_props_ = cmd_chr->properties;
 
       if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE) {
         this->write_type_ = ESP_GATT_WRITE_TYPE_RSP;
@@ -81,6 +75,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
       break;
     }
 
+/*
     case ESP_GATTC_OPEN_EVT: {
       ESP_LOGW(TAG, "Connected!");
       if (param->open.status == ESP_GATT_OK) {
@@ -89,7 +84,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
       }
       break;
     }
-
+*/
     case ESP_GATTC_CLOSE_EVT: {
       ESP_LOGW(TAG, "Disconnected!");
 

@@ -47,7 +47,7 @@ async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
     
     sens = await binary_sensor.new_binary_sensor(
-        config[CONF_LD2410_ID],
+        config,
         binary_sensor.binary_sensor_schema(
             device_class=DEVICE_CLASS_CONNECTIVITY,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,            

@@ -18,6 +18,12 @@ namespace ld2410_ble{
 
 static const char *const TAG = "ld2410";
 
+void LD2410BLEComponent::loop() {
+  // Parent BLEClientNode has a loop() method, but this component uses
+  // polling via update() and BLE callbacks so loop isn't needed
+  this->disable_loop();
+}
+
 void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
   ESP_LOGI(TAG, "GATTS Event received: %d", event);
 
@@ -76,11 +82,9 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 
     case ESP_GATTC_OPEN_EVT: {
       ESP_LOGW(TAG, "Connected!");
-
-      this->node_state = espbt::ClientState::ESTABLISHED;
-
-      if (this->ble_status_binary_sensor_ != nullptr) {
-        this->ble_status_binary_sensor_->publish_state(false);
+      if (param->open.status == ESP_GATT_OK) {
+        ESP_LOGI(TAG, "[%s] Connected successfully!", this->get_name().c_str());
+        break;
       }
       break;
     }
@@ -91,18 +95,6 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
       if (this->ble_status_binary_sensor_ != nullptr) {
         this->ble_status_binary_sensor_->publish_state(false);
       }
-      break;
-    }
-
-    case ESP_GATTC_DISCONNECT_EVT: {
-      this->char_command_handle_ = 0;
-      this->char_notify_handle_ = 0;
-
-      if (this->ble_status_binary_sensor_ != nullptr) {
-        this->ble_status_binary_sensor_->publish_state(false);
-      }
-
-      ESP_LOGW(TAG, "Disconnected!");
       break;
     }
 
@@ -147,9 +139,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 }
 
 void LD2410BLEComponent::update() {
-  if (this->node_state == espbt::ClientState::CONNECTING) {
-    ESP_LOGW(TAG, "Connection in progress");
-  } else if (this->node_state != espbt::ClientState::ESTABLISHED) {
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
       ESP_LOGW(TAG, "Reconnecting to device");
       this->parent()->set_enabled(true);
       this->parent()->connect();
@@ -161,12 +151,13 @@ void LD2410BLEComponent::update() {
       this->status_set_warning();
       ESP_LOGW(TAG, "Error sending read request for sensor, status=%d", status);
     }
-
+/*
     ESP_LOGCONFIG(TAG, "Setting up LD2410...");
     this->read_all_info();
     ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
     ESP_LOGCONFIG(TAG, "Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
     ESP_LOGCONFIG(TAG, "LD2410 setup complete.");
+*/
   }
 }
 

@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import ble_client
-from esphome.components.ble_client import sensor as ble_sensor
 from esphome.const import CONF_ID, CONF_THROTTLE, CONF_TIMEOUT, CONF_PASSWORD
 from esphome import automation
 from esphome.automation import maybe_simple_id
@@ -11,7 +10,7 @@ CODEOWNERS = ["@shammysha", "@sebcaps", "@regevbr"]
 MULTI_CONF = True
 
 ld2410_ble_ns = cg.esphome_ns.namespace("ld2410_ble")
-LD2410BLEComponent = ld2410_ble_ns.class_("LD2410BLEComponent", ble_client.BLEClientNode, ble_sensor.BLESensor)
+LD2410BLEComponent = ld2410_ble_ns.class_("LD2410BLEComponent", ble_client.BLEClientNode)
 
 CONF_LD2410_ID = "ld2410_id"
 

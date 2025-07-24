@@ -18,12 +18,6 @@ namespace ld2410_ble{
 
 static const char *const TAG = "ld2410";
 
-void LD2410BLEComponent::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  ESP_LOGI(TAG, "GAP Event received: %d", event);
-
-  return this->parent()->gap_event_handler(event, param);
-}
-
 void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
   ESP_LOGI(TAG, "GATTS Event received: %d", event);
 

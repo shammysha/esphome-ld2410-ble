@@ -170,7 +170,7 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
   void dump_config() override;
   void update() override;
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) override;
-  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
+//  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 
   void set_light_out_control();
   void set_throttle(uint16_t value) { this->throttle_ = value; };

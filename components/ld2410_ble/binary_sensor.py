@@ -46,14 +46,7 @@ CONFIG_SCHEMA = {
 async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
     
-    sens = await binary_sensor.new_binary_sensor(
-        binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_CONNECTIVITY,
-            icon=ICON_BLUETOOTH,
-            CONF_DISABLED_BY_DEFAULT=False
-        )
-    )
-    cg.add(ld2410_component.set_ble_connection_sensor(sens))    
+
     
     if has_target_config := config.get(CONF_HAS_TARGET):
         sens = await binary_sensor.new_binary_sensor(has_target_config)

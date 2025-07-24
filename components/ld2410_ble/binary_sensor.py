@@ -16,7 +16,8 @@ from esphome.const import (
     CONF_DISABLED_BY_DEFAULT,
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
-    CONF_ICON     
+    CONF_ICON,
+    CONF_ID   
          
 )
 from . import CONF_LD2410_ID, LD2410BLEComponent
@@ -51,7 +52,7 @@ async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
     
     sens = await binary_sensor.new_binary_sensor({
-        cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410BLEComponent),
+        CONF_ID: cv.use_id(LD2410BLEComponent),
         CONF_DEVICE_CLASS: DEVICE_CLASS_CONNECTIVITY,
         CONF_ENTITY_CATEGORY: ENTITY_CATEGORY_DIAGNOSTIC,            
         CONF_ICON: ICON_BLUETOOTH,

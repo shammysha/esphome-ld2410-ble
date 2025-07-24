@@ -69,7 +69,9 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
       ESP_LOGI(TAG, "Found notify characteristic %s on device %s", this->char_notify_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
 
       this->node_state = espbt::ClientState::ESTABLISHED;
-      this->ble_connection_binary_sensor_->publish_state(true);
+      if (this->ble_status_binary_sensor_ != nullptr) {
+        this->ble_connection_binary_sensor_->publish_state(true);
+      }
 
       this->set_permissions();
       this->set_engineering_mode(true);
@@ -79,14 +81,20 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 
     case ESP_GATTC_CLOSE_EVT: {
       ESP_LOGW(TAG, "Disconnected!");
-      this->ble_connection_binary_sensor_->publish_state(false);
+
+      if (this->ble_status_binary_sensor_ != nullptr) {
+        this->ble_connection_binary_sensor_->publish_state(false);
+      }
       break;
     }
 
     case ESP_GATTC_DISCONNECT_EVT: {
       this->char_command_handle_ = 0;
       this->char_notify_handle_ = 0;
-      this->ble_connection_binary_sensor_->publish_state(false);
+
+      if (this->ble_status_binary_sensor_ != nullptr) {
+        this->ble_status_binary_sensor_->publish_state(false);
+      }
 
       ESP_LOGW(TAG, "Disconnected!");
       break;

@@ -22,9 +22,16 @@ MULTI_CONF = True
 
 ld2410_ble_ns = cg.esphome_ns.namespace("ld2410_ble")
 LD2410BLEComponent = ld2410_ble_ns.class_("LD2410BLEComponent", ble_client.BLEClientNode, cg.Component)
-LD2410BLESensor = ld2410_ble_ns.class_("LD2410BLESensor", ble_sensor.BLESensor, cg.PollingComponent)
+LD2410BLESensor = ld2410_ble_ns.class_("LD2410BLESensor", ble_sensor.BLESensor, sensor.Sensor, cg.PollingComponent)
 
 CONF_LD2410_ID = "ld2410_id"
+
+BLE_SENS_CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(LD2410BLEComponent),
+        cv.Optional(CONF_PASSWORD, default="HiLink"): cv.string_strict
+    }
+).extend(cv.polling_component_schema("30sec")).extend(ble_client.BLE_CLIENT_SCHEMA)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -39,14 +46,12 @@ async def to_code(config):
     await ble_client.register_ble_node(var, config)    
     cg.add(var.set_password(config[CONF_PASSWORD]))
     
-    ble_sens: MockObj = await ble_sensor.to_code(
+    ble_sens: MockObj = await sensor.new_sensor(
         {
             CONF_ID: cv.declare_id(LD2410BLESensor)(var.base.__str__() + '_ble_sensor'),
             CONF_TYPE: "characteristic",
-            CONF_NAME: None,
-            CONF_DISABLED_BY_DEFAULT: False,
             CONF_INTERNAL: True
-        }       
+        }  
     )
     cg.add(ble_sens.set_parent(var))
     cg.add(ble_sens.set_enable_notify(True))

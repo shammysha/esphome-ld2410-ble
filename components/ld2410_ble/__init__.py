@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import ble_client
+from esphome.components import ble_client, sensor
 from esphome.components.ble_client import sensor as ble_sensor
 from esphome import automation
 from esphome.automation import maybe_simple_id
@@ -37,7 +37,7 @@ async def to_code(config):
     await ble_client.register_ble_node(var, config)    
     cg.add(var.set_password(config[CONF_PASSWORD]))
     
-    ble_sens: MockObj = await sensor.new_sensor(
+    ble_sens: MockObj = await registersensor.new_sensor(
         {
             CONF_ID: cv.declare_id(LD2410BLESensor)(var.base.__str__() + '_ble_sensor'),
             CONF_TYPE: "characteristic",

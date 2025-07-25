@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_PASSWORD, 
     CONF_TYPE,
     CONF_INTERNAL,
+    CONF_NAME
 )
 
 

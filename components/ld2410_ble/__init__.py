@@ -20,7 +20,7 @@ MULTI_CONF = True
 
 ld2410_ble_ns = cg.esphome_ns.namespace("ld2410_ble")
 LD2410BLEComponent = ld2410_ble_ns.class_("LD2410BLEComponent", ble_client.BLEClientNode, cg.Component)
-LD2410BLESensor = ld2410_ble_ns.class_("LD2410BLESensor", ble_sensor.BLESensor)
+LD2410BLESensor = ld2410_ble_ns.class_("LD2410BLESensor", ble_sensor.BLESensor, cg.PollingComponent)
 
 CONF_LD2410_ID = "ld2410_id"
 

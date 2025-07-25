@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import ble_client
+from esphome.components.ble_client import sensor as ble_sensor
 from esphome.const import CONF_ID, CONF_THROTTLE, CONF_TIMEOUT, CONF_PASSWORD
 from esphome import automation
 from esphome.automation import maybe_simple_id
@@ -10,7 +11,8 @@ CODEOWNERS = ["@shammysha", "@sebcaps", "@regevbr"]
 MULTI_CONF = True
 
 ld2410_ble_ns = cg.esphome_ns.namespace("ld2410_ble")
-LD2410BLEComponent = ld2410_ble_ns.class_("LD2410BLEComponent", ble_client.BLEClientNode, cg.PollingComponent)
+LD2410BLEComponent = ld2410_ble_ns.class_("LD2410BLEComponent", ble_client.BLEClientNode, cg.Component)
+LD2410BLESensor = ld2410_ble_ns.class_("LD2410BLESensor", ble_sensor.BLESensor)
 
 CONF_LD2410_ID = "ld2410_id"
 
@@ -26,8 +28,10 @@ async def to_code(config):
     await cg.register_component(var, config)
     await ble_client.register_ble_node(var, config)    
     cg.add(var.set_password(config[CONF_PASSWORD]))
-  
-
+    
+    
+    
+    
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(LD2410BLEComponent),

@@ -118,7 +118,14 @@ async def to_code(config):
     ble_sens: MockObj = await sensor.new_sensor(
         cv.Schema({
             cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410BLEComponent)
-        }).extend(sensor.sensor_schema).extend(cv.polling_component_schema("10s"))
+        })
+        .extend(
+            sensor.sensor_schema(
+                LD2410BLESensor, 
+                accuracy_decimals=0
+            )
+        )
+        .extend(cv.polling_component_schema("10s"))
     )
     cg.add(ble_sens.set_parent(ld2410_component))
     cg.add(ble_sens.set_enable_notify(True))

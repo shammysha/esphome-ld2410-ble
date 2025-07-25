@@ -37,7 +37,7 @@ async def to_code(config):
     await ble_client.register_ble_node(var, config)    
     cg.add(var.set_password(config[CONF_PASSWORD]))
     
-    ble_sens: MockObj = await registersensor.new_sensor(
+    ble_sens: MockObj = await sensor.new_sensor(
         {
             CONF_ID: cv.declare_id(LD2410BLESensor)(var.base.__str__() + '_ble_sensor'),
             CONF_TYPE: "characteristic",

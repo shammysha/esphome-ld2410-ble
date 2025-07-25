@@ -11,7 +11,8 @@ from esphome.const import (
     CONF_PASSWORD, 
     CONF_TYPE,
     CONF_INTERNAL,
-    CONF_NAME
+    CONF_NAME,
+    CONF_DISABLED_BY_DEFAULT    
 )
 
 
@@ -43,6 +44,7 @@ async def to_code(config):
             CONF_ID: cv.declare_id(LD2410BLESensor)(var.base.__str__() + '_ble_sensor'),
             CONF_TYPE: "characteristic",
             CONF_NAME: None,
+            CONF_DISABLED_BY_DEFAULT: False,
             CONF_INTERNAL: True
         }       
     )

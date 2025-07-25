@@ -7,12 +7,15 @@ from esphome.const import (
     UNIT_CENTIMETER,
     UNIT_PERCENT,
     CONF_LIGHT,
+    CONF_ID, 
+    CONF_TYPE,
     DEVICE_CLASS_ILLUMINANCE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_SIGNAL,
     ICON_FLASH,
     ICON_MOTION_SENSOR,
     ICON_LIGHTBULB,
+    
 )
 from . import CONF_LD2410_ID, LD2410BLEComponent, ld2410_ble_ns
 

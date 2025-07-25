@@ -120,7 +120,6 @@ async def to_code(config):
     ble_sens: MockObj = await sensor.new_sensor(
         {
             CONF_ID: cv.declare_id(LD2410BLESensor)(ld2410_component.base.__str__() + '_ble_sensor'),
-            CONF_TYPE: "characteristic",
             CONF_NAME: None,
             CONF_INTERNAL: True,
             CONF_FORCE_UPDATE: False

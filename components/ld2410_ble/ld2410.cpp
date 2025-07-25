@@ -33,7 +33,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 
       this->handle = chr->handle;
 
-      auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(), this->parent()->get_remote_bda(), chr->handle);
+      auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(), this->parent()->get_remote_bda(), this->handle);
       if (status) {
         ESP_LOGE(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
         break;

@@ -116,11 +116,9 @@ async def to_code(config):
                 
 
     ble_sens: MockObj = await sensor.new_sensor(
-        {
-            CONF_ID: cv.declare_id(LD2410BLESensor)(ld2410_component.base.__str__() + '_ble_sensor'),
-            CONF_TYPE: "characteristic",
-            CONF_INTERNAL: True
-        }  
+        cv.Schema({
+            cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410BLEComponent)
+        }).extend(sensor.sensor_schema).extend(cv.polling_component_schema("10s"))
     )
     cg.add(ble_sens.set_parent(ld2410_component))
     cg.add(ble_sens.set_enable_notify(True))

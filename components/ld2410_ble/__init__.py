@@ -41,6 +41,7 @@ async def to_code(config):
         {
             CONF_ID: cv.declare_id(LD2410BLESensor)(var.base.__str__() + '_ble_sensor'),
             CONF_TYPE: "characteristic",
+            CONF_NAME: None,
             CONF_INTERNAL: True
         }       
     )

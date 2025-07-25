@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_ID, 
     CONF_TYPE,
     CONF_INTERNAL,    
+    CONF_FORCE_UPDATE,
     DEVICE_CLASS_ILLUMINANCE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_SIGNAL,
@@ -19,6 +20,7 @@ from esphome.const import (
     
 )
 from . import CONF_LD2410_ID, LD2410BLEComponent, ld2410_ble_ns
+from homeassistant.const import CONF_FORCE_UPDATE
 
 DEPENDENCIES = ["ld2410_ble"]
 CONF_MOVING_DISTANCE = "moving_distance"
@@ -119,7 +121,9 @@ async def to_code(config):
         {
             CONF_ID: cv.declare_id(LD2410BLESensor)(ld2410_component.base.__str__() + '_ble_sensor'),
             CONF_TYPE: "characteristic",
-            CONF_INTERNAL: True
+            CONF_NAME: None,
+            CONF_INTERNAL: True,
+            CONF_FORCE_UPDATE: False
         }  
     )
     cg.add(ble_sens.set_parent(ld2410_component))

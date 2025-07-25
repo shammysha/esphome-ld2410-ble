@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_LIGHT,
     CONF_ID, 
     CONF_TYPE,
+    CONF_INTERNAL,    
     DEVICE_CLASS_ILLUMINANCE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_SIGNAL,

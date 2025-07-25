@@ -1,6 +1,5 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components.ble_client import sensor as ble_sensor
 from esphome.components import ble_client, sensor
 from esphome import automation
 from esphome.automation import maybe_simple_id
@@ -22,7 +21,6 @@ MULTI_CONF = True
 
 ld2410_ble_ns = cg.esphome_ns.namespace("ld2410_ble")
 LD2410BLEComponent = ld2410_ble_ns.class_("LD2410BLEComponent", ble_client.BLEClientNode, cg.Component)
-LD2410BLESensor = ld2410_ble_ns.class_("LD2410BLESensor", ble_sensor.BLESensor, sensor.Sensor, cg.PollingComponent)
 
 CONF_LD2410_ID = "ld2410_id"
 
@@ -38,23 +36,13 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(LD2410BLEComponent),
         cv.Optional(CONF_PASSWORD, default="HiLink"): cv.string_strict
     }
-).extend(cv.polling_component_schema("30sec")).extend(ble_client.BLE_CLIENT_SCHEMA)
+).extend(ble_client.BLE_CLIENT_SCHEMA)
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await ble_client.register_ble_node(var, config)    
     cg.add(var.set_password(config[CONF_PASSWORD]))
-    
-    ble_sens: MockObj = await sensor.new_sensor(
-        {
-            CONF_ID: cv.declare_id(LD2410BLESensor)(var.base.__str__() + '_ble_sensor'),
-            CONF_TYPE: "characteristic",
-            CONF_INTERNAL: True
-        }  
-    )
-    cg.add(ble_sens.set_parent(var))
-    cg.add(ble_sens.set_enable_notify(True))
     
     
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(

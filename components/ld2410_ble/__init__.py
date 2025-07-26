@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import ble_client, sensor
+from esphome.components import ble_client
 from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.const import (

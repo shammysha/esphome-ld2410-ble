@@ -17,10 +17,8 @@ from esphome.const import (
     ICON_FLASH,
     ICON_MOTION_SENSOR,
     ICON_LIGHTBULB,
-    
 )
 from . import CONF_LD2410_ID, LD2410BLEComponent, ld2410_ble_ns
-from homeassistant.const import CONF_FORCE_UPDATE
 
 DEPENDENCIES = ["ld2410_ble"]
 CONF_MOVING_DISTANCE = "moving_distance"

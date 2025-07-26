@@ -24,7 +24,7 @@
 #endif
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
-// #include "esphome/components/ble_client/sensor/ble_sensor.h"
+#include "esphome/components/ble_client/sensor/ble_sensor.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 #include <map>

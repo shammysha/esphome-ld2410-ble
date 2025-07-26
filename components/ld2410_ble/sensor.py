@@ -8,6 +8,7 @@ from esphome.const import (
     UNIT_PERCENT,
     CONF_LIGHT,
     CONF_ID, 
+    CONF_NAME,
     CONF_TYPE,
     CONF_INTERNAL,    
     CONF_FORCE_UPDATE,

@@ -79,11 +79,11 @@ text_sensor:
       name: LD2410 Active Transport
 ```
 
-Смотрите [`ld2410-ble-template.yaml`](ld2410-ble-template.yaml) — переиспользуемый
+Смотрите [`ld2410-ble-component-template.yaml`](ld2410-ble-component-template.yaml) — переиспользуемый
 packages-шаблон только для BLE, и [`ld2410-uart-ble-template.yaml`](ld2410-uart-ble-template.yaml)
 — вариант с двумя транспортами. Оба принимают подстановки
 `place`/`mac_address`/`password`/`disabled` (а dual-transport ещё и `tx`/`rx`) и
-открывают полный набор сущностей. [`ld2410-ble-test.yaml`](ld2410-ble-test.yaml) /
+открывают полный набор сущностей. [`ld2410-ble-component-test.yaml`](ld2410-ble-component-test.yaml) /
 [`ld2410-uart-ble-test.yaml`](ld2410-uart-ble-test.yaml) — запускаемые примеры конфигов
 устройств поверх этих шаблонов.
 

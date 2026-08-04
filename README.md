@@ -77,11 +77,11 @@ text_sensor:
       name: LD2410 Active Transport
 ```
 
-See [`ld2410-ble-template.yaml`](ld2410-ble-template.yaml) for a BLE-only reusable
+See [`ld2410-ble-component-template.yaml`](ld2410-ble-component-template.yaml) for a BLE-only reusable
 packages template, and [`ld2410-uart-ble-template.yaml`](ld2410-uart-ble-template.yaml)
 for the dual-transport variant — both take `place`/`mac_address`/`password`/`disabled`
 substitutions (and `tx`/`rx` for the dual-transport one) and expose the full entity set.
-[`ld2410-ble-test.yaml`](ld2410-ble-test.yaml) / [`ld2410-uart-ble-test.yaml`](ld2410-uart-ble-test.yaml)
+[`ld2410-ble-component-test.yaml`](ld2410-ble-component-test.yaml) / [`ld2410-uart-ble-test.yaml`](ld2410-uart-ble-test.yaml)
 are runnable example device configs built on top of them.
 
 ## Status

@@ -60,7 +60,7 @@ button:
 
 packages:
   test_emi: !include
-    file: ld2410-ble-template.yaml
+    file: ld2410-ble-component-template.yaml
     vars:
       place: 'test'
       mac_address: 'AA:BB:CC:DD:EE:FF'

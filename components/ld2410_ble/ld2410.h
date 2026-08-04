@@ -24,6 +24,7 @@
 #endif
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 #include <map>
@@ -122,7 +123,7 @@ enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
 //  char cmd[2] = {enable ? 0xFF : 0xFE, 0x00};
 
 
-class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClientNode {
+class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClientNode, public uart::UARTDevice {
 #ifdef USE_SENSOR
   SUB_SENSOR(moving_target_distance)
   SUB_SENSOR(still_target_distance)
@@ -141,6 +142,7 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(version)
   SUB_TEXT_SENSOR(mac)
+  SUB_TEXT_SENSOR(active_transport)
 #endif
 #ifdef USE_SELECT
   SUB_SELECT(distance_resolution)
@@ -168,14 +170,22 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
 
   void dump_config() override;
   void update() override;
+  void loop() override;
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) override;
 //  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 
+  // Called from codegen when a `uart_id` is configured. UART is treated as the preferred
+  // transport whenever it has produced a valid frame recently; BLE (always kept connected
+  // in the background once configured) is used as a fallback when UART goes quiet.
+  void mark_uart_configured() { this->uart_enabled_ = true; }
+
   void set_light_out_control();
   void set_throttle(uint16_t value) { this->throttle_ = value; };
   void set_bluetooth_password(const std::string &password);
-  void set_engineering_mode(bool enable);
+  // force_ble: bypass transport preference (used for the BLE session bootstrap itself, in
+  // gattc_event_handler, which must always configure the BLE link it just established).
+  void set_engineering_mode(bool enable, bool force_ble = false);
   void read_all_info();
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
@@ -198,8 +208,11 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
 
  protected:
   int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
-  bool send_command_(uint8_t command_str, const uint8_t *command_value, int command_value_len);
-  void set_config_mode_(bool enable);
+  // force_ble: skip should_use_uart_() and always write over the (already-connected) BLE link —
+  // needed for BLE-only setup commands (password gate) and the BLE session bootstrap sequence.
+  bool send_command_(uint8_t command_str, const uint8_t *command_value, int command_value_len, bool force_ble = false);
+  bool write_ble_(const std::vector<uint8_t> &data);
+  void set_config_mode_(bool enable, bool force_ble = false);
   void set_permissions();
   void handle_periodic_data_(uint8_t *buffer, int len);
   bool handle_ack_data_(uint8_t *buffer, int len);
@@ -210,6 +223,35 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
   void get_distance_resolution_();
   void get_light_control_();
   void restart_();
+
+  // -- UART/BLE transport failover --
+  // Both transports (when configured) receive independently and in parallel; sensor readings
+  // are published from whichever one delivers a valid frame, so presence data stays continuous
+  // regardless of which channel is currently alive. `should_use_uart_()` only decides where
+  // *outbound* commands go and what the diagnostic text sensor reports.
+  enum class FrameSource : uint8_t { UART, BLE };
+  static constexpr uint8_t MAX_LINE_LENGTH = 46;
+  static constexpr uint32_t TRANSPORT_SILENCE_TIMEOUT_MS = 2000;
+
+  bool should_use_uart_();
+  bool uart_recently_healthy_() {
+    return this->uart_enabled_ && this->last_uart_frame_millis_ != 0 &&
+           millis() - this->last_uart_frame_millis_ < TRANSPORT_SILENCE_TIMEOUT_MS;
+  }
+  bool ble_recently_healthy_() {
+    return this->parent() != nullptr && this->node_state == espbt::ClientState::ESTABLISHED &&
+           this->last_ble_frame_millis_ != 0 && millis() - this->last_ble_frame_millis_ < TRANSPORT_SILENCE_TIMEOUT_MS;
+  }
+  void update_transport_diagnostics_();
+
+  bool uart_enabled_{false};
+  FrameSource current_frame_source_{FrameSource::BLE};
+  uint32_t last_uart_frame_millis_{0};
+  uint32_t last_ble_frame_millis_{0};
+  bool last_reported_uart_active_{false};
+  bool transport_diag_published_{false};
+  uint8_t uart_buffer_[MAX_LINE_LENGTH]{};
+  uint8_t uart_buffer_pos_{0};
 
   esp_gatt_char_prop_t char_props_{};
   esp_gatt_write_type_t write_type_{};

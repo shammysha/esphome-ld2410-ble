@@ -12,6 +12,8 @@ from . import CONF_LD2410_ID, LD2410BLEComponent
 
 DEPENDENCIES = ["ld2410_ble"]
 
+CONF_ACTIVE_TRANSPORT = "active_transport"
+
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410BLEComponent),
     cv.Optional(CONF_VERSION): text_sensor.text_sensor_schema(
@@ -19,6 +21,9 @@ CONFIG_SCHEMA = {
     ),
     cv.Optional(CONF_MAC_ADDRESS): text_sensor.text_sensor_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon=ICON_BLUETOOTH
+    ),
+    cv.Optional(CONF_ACTIVE_TRANSPORT): text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon="mdi:swap-horizontal"
     ),
 }
 
@@ -31,3 +36,6 @@ async def to_code(config):
     if mac_address_config := config.get(CONF_MAC_ADDRESS):
         sens = await text_sensor.new_text_sensor(mac_address_config)
         cg.add(ld2410_component.set_mac_text_sensor(sens))
+    if active_transport_config := config.get(CONF_ACTIVE_TRANSPORT):
+        sens = await text_sensor.new_text_sensor(active_transport_config)
+        cg.add(ld2410_component.set_active_transport_text_sensor(sens))

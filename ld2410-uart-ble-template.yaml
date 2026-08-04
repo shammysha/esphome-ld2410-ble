@@ -1,0 +1,294 @@
+substitutions:
+  place: 'somewhere'
+  mac_address: 'unknown'
+  password: "HiLink"
+  tx: 'unknown'
+  rx: 'unknown'
+  disabled: false
+
+esp32_ble_tracker:
+
+uart:
+  - id: ${place}_uart
+    tx_pin: ${tx}
+    rx_pin: ${rx}
+    baud_rate: 256000
+    parity: NONE
+    stop_bits: 1
+
+  - id: !remove ${disabled and place + "_uart"}
+
+ble_client:
+  - mac_address: ${mac_address}
+    id: ${place}_ble_client
+
+  - id: !remove ${disabled and place + "_ble_client"}
+
+# UART is preferred whenever it has produced a valid frame recently; BLE (kept connected in
+# the background) is used as a fallback if the wired link goes quiet. See active_transport
+# below for a diagnostic showing which one is currently in use.
+ld2410_ble:
+  - id: ${place}_emi
+    uart_id: ${place}_uart
+    ble_client_id: ${place}_ble_client
+    password: ${password}
+
+  - id: !remove ${disabled and place + "_emi"}
+
+binary_sensor:
+  - platform: ld2410_ble
+    ld2410_id: ${place}_emi
+    has_target:
+      id: ${place}_target
+      name: ${place} Target
+      internal: ${disabled}
+    has_moving_target:
+      id: ${place}_moving_target
+      name: ${place} Moving Target
+      internal: ${disabled}
+    has_still_target:
+      id: ${place}_still_target
+      name: ${place} Still Target
+      internal: ${disabled}
+    out_pin_presence_status:
+      id: ${place}_out_pin_presence_status
+      name: ${place} Out Pin Presence Status
+      internal: ${disabled}
+    ble_status:
+      id: ${place}_ble_status
+      name: ${place} BLE Status
+      internal: ${disabled}
+
+text_sensor:
+  - platform: ld2410_ble
+    ld2410_id: ${place}_emi
+    version:
+      id: ${place}_firmware
+      name: ${place} Firmware
+      internal: ${disabled}
+    mac_address:
+      id: ${place}_mac
+      name: ${place} Mac Address
+      internal: ${disabled}
+    active_transport:
+      id: ${place}_active_transport
+      name: ${place} Active Transport
+      internal: ${disabled}
+
+sensor:
+  - platform: ld2410_ble
+    ld2410_id: ${place}_emi
+    moving_distance:
+      id: ${place}_moving_distance
+      name: ${place} Moving Distance
+      internal: ${disabled}
+    still_distance:
+      id: ${place}_still_distance
+      name: ${place} Still Distance
+      internal: ${disabled}
+    moving_energy:
+      id: ${place}_moving_energy
+      name: ${place} Moving Energy
+      internal: ${disabled}
+    still_energy:
+      id: ${place}_still_energy
+      name: ${place} Still Energy
+      internal: ${disabled}
+    detection_distance:
+      id: ${place}_detection_distance
+      name: ${place} Detection Distance
+      internal: ${disabled}
+    light:
+      id: ${place}_light
+      name: ${place} Light
+      internal: ${disabled}
+    g0:
+      move_energy:
+        name: ${place} g0 move energy
+        internal: ${disabled}
+      still_energy:
+        name: ${place} g0 still energy
+        internal: ${disabled}
+    g1:
+      move_energy:
+        name: ${place} g1 move energy
+        internal: ${disabled}
+      still_energy:
+        name: ${place} g1 still energy
+        internal: ${disabled}
+    g2:
+      move_energy:
+        name: ${place} g2 move energy
+        internal: ${disabled}
+      still_energy:
+        name: ${place} g2 still energy
+        internal: ${disabled}
+    g3:
+      move_energy:
+        name: ${place} g3 move energy
+        internal: ${disabled}
+      still_energy:
+        name: ${place} g3 still energy
+        internal: ${disabled}
+    g4:
+      move_energy:
+        name: ${place} g4 move energy
+        internal: ${disabled}
+      still_energy:
+        name: ${place} g4 still energy
+        internal: ${disabled}
+    g5:
+      move_energy:
+        name: ${place} g5 move energy
+        internal: ${disabled}
+      still_energy:
+        name: ${place} g5 still energy
+        internal: ${disabled}
+    g6:
+      move_energy:
+        name: ${place} g6 move energy
+        internal: ${disabled}
+      still_energy:
+        name: ${place} g6 still energy
+        internal: ${disabled}
+    g7:
+      move_energy:
+        name: ${place} g7 move energy
+        internal: ${disabled}
+      still_energy:
+        name: ${place} g7 still energy
+        internal: ${disabled}
+    g8:
+      move_energy:
+        name: ${place} g8 move energy
+        internal: ${disabled}
+      still_energy:
+        name: ${place} g8 still energy
+        internal: ${disabled}
+
+switch:
+  - platform: ld2410_ble
+    ld2410_id: ${place}_emi
+    engineering_mode:
+      id: ${place}_engineering_mode
+      name: ${place} engineering mode
+      internal: ${disabled}
+    bluetooth:
+      id: ${place}_bluetooth
+      name: ${place} control bluetooth
+      internal: ${disabled}
+
+button:
+  - platform: ld2410_ble
+    ld2410_id: ${place}_emi
+    factory_reset:
+      id: ${place}_factory_reset
+      name: ${place} factory reset
+      internal: ${disabled}
+    restart:
+      id: ${place}_restart
+      name: ${place} restart
+      internal: ${disabled}
+    query_params:
+      id: ${place}_query_params
+      name: ${place} query params
+      internal: ${disabled}
+
+select:
+  - platform: ld2410_ble
+    ld2410_id: ${place}_emi
+    distance_resolution:
+      id: ${place}_distance_resolution
+      name: ${place} distance resolution
+      internal: ${disabled}
+    light_function:
+      id: ${place}_light_function
+      name: ${place} light function
+      internal: ${disabled}
+    out_pin_level:
+      id: ${place}_out_pin_level
+      name: ${place} out pin level
+      internal: ${disabled}
+
+number:
+  - platform: ld2410_ble
+    ld2410_id: ${place}_emi
+    timeout:
+      id: ${place}_timeout
+      name: ${place} timeout
+      internal: ${disabled}
+    max_move_distance_gate:
+      id: ${place}_max_move_distance
+      name: ${place} max move distance
+      internal: ${disabled}
+    max_still_distance_gate:
+      id: ${place}_max_still_distance
+      name: ${place} max still distance
+      internal: ${disabled}
+    light_threshold:
+      id: ${place}_light_threshold
+      name: ${place} light threshold
+      internal: ${disabled}
+    g0:
+      move_threshold:
+        name: ${place} g0 move threshold
+        internal: ${disabled}
+      still_threshold:
+        name: ${place} g0 still threshold
+        internal: ${disabled}
+    g1:
+      move_threshold:
+        name: ${place} g1 move threshold
+        internal: ${disabled}
+      still_threshold:
+        name: ${place} g1 still threshold
+        internal: ${disabled}
+    g2:
+      move_threshold:
+        name: ${place} g2 move threshold
+        internal: ${disabled}
+      still_threshold:
+        name: ${place} g2 still threshold
+        internal: ${disabled}
+    g3:
+      move_threshold:
+        name: ${place} g3 move threshold
+        internal: ${disabled}
+      still_threshold:
+        name: ${place} g3 still threshold
+        internal: ${disabled}
+    g4:
+      move_threshold:
+        name: ${place} g4 move threshold
+        internal: ${disabled}
+      still_threshold:
+        name: ${place} g4 still threshold
+        internal: ${disabled}
+    g5:
+      move_threshold:
+        name: ${place} g5 move threshold
+        internal: ${disabled}
+      still_threshold:
+        name: ${place} g5 still threshold
+        internal: ${disabled}
+    g6:
+      move_threshold:
+        name: ${place} g6 move threshold
+        internal: ${disabled}
+      still_threshold:
+        name: ${place} g6 still threshold
+        internal: ${disabled}
+    g7:
+      move_threshold:
+        name: ${place} g7 move threshold
+        internal: ${disabled}
+      still_threshold:
+        name: ${place} g7 still threshold
+        internal: ${disabled}
+    g8:
+      move_threshold:
+        name: ${place} g8 move threshold
+        internal: ${disabled}
+      still_threshold:
+        name: ${place} g8 still threshold
+        internal: ${disabled}

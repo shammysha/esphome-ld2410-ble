@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-from esphome.components.ble_client import sensor as ble_sensor
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
@@ -7,12 +6,6 @@ from esphome.const import (
     UNIT_CENTIMETER,
     UNIT_PERCENT,
     CONF_LIGHT,
-    CONF_ID, 
-    CONF_NAME,
-    CONF_TYPE,
-    CONF_INTERNAL,    
-    CONF_FORCE_UPDATE,
-    CONF_DISABLED_BY_DEFAULT,    
     DEVICE_CLASS_ILLUMINANCE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_SIGNAL,
@@ -20,7 +13,7 @@ from esphome.const import (
     ICON_MOTION_SENSOR,
     ICON_LIGHTBULB,
 )
-from . import CONF_LD2410_ID, LD2410BLEComponent, ld2410_ble_ns
+from . import CONF_LD2410_ID, LD2410BLEComponent
 
 DEPENDENCIES = ["ld2410_ble"]
 CONF_MOVING_DISTANCE = "moving_distance"
@@ -29,8 +22,6 @@ CONF_MOVING_ENERGY = "moving_energy"
 CONF_STILL_ENERGY = "still_energy"
 CONF_DETECTION_DISTANCE = "detection_distance"
 CONF_MOVE_ENERGY = "move_energy"
-
-LD2410BLESensor = ld2410_ble_ns.class_("LD2410BLESensor", ble_sensor.BLESensor, sensor.Sensor, cg.PollingComponent)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -115,18 +106,4 @@ async def to_code(config):
             if still_config := gate_conf.get(CONF_STILL_ENERGY):
                 sens = await sensor.new_sensor(still_config)
                 cg.add(ld2410_component.set_gate_still_sensor(x, sens))
-                
-
-    ble_sens: MockObj = await sensor.new_sensor(
-        {
-            CONF_ID: cv.declare_id(LD2410BLESensor)(ld2410_component.base.__str__() + '_ble_sensor'),
-            CONF_NAME: None,
-            CONF_INTERNAL: True,
-            CONF_FORCE_UPDATE: False,
-            CONF_DISABLED_BY_DEFAULT: False
-        }  
-    )
-    cg.add(ble_sens.set_parent(ld2410_component))
-    cg.add(ble_sens.set_enable_notify(True))
-    cg.add(ld2410_component.set_ble_sensor(ble_sens))
 

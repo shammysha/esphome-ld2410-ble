@@ -27,7 +27,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
       auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_notify_uuid_);
 
       if (chr == nullptr) {
-        ESP_LOGE(TAG, "[%s] No notify service found at device. Does it really LD2410?", this->parent()->address_str().c_str());
+        ESP_LOGE(TAG, "[%s] No notify service found at device. Does it really LD2410?", this->parent()->address_str());
         break;
       }
 
@@ -39,7 +39,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         break;
       }
 
-      ESP_LOGI(TAG, "Found notify characteristic %s on device %s", this->char_notify_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
+      ESP_LOGI(TAG, "Found notify characteristic %s on device %s", this->char_notify_uuid_.to_string().c_str(), this->parent()->address_str());
 
       auto *cmd_chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
       if (cmd_chr == nullptr) {
@@ -62,7 +62,7 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         break;
       }
       this->node_state = espbt::ClientState::ESTABLISHED;
-      ESP_LOGD(TAG, "Found command characteristic %s on device %s", this->char_command_uuid_.to_string().c_str(), this->parent()->address_str().c_str());
+      ESP_LOGD(TAG, "Found command characteristic %s on device %s", this->char_command_uuid_.to_string().c_str(), this->parent()->address_str());
 
       this->node_state = espbt::ClientState::ESTABLISHED;
       if (this->ble_status_binary_sensor_ != nullptr) {
@@ -196,7 +196,6 @@ void LD2410BLEComponent::dump_config() {
   LOG_SELECT("  ", "LightFunctionSelect", this->light_function_select_);
   LOG_SELECT("  ", "OutPinLevelSelect", this->out_pin_level_select_);
   LOG_SELECT("  ", "DistanceResolutionSelect", this->distance_resolution_select_);
-  LOG_SELECT("  ", "BaudRateSelect", this->baud_rate_select_);
 #endif
 #ifdef USE_NUMBER
   LOG_NUMBER("  ", "LightThresholdNumber", this->light_threshold_number_);
@@ -499,7 +498,7 @@ bool LD2410BLEComponent::handle_ack_data_(uint8_t *buffer, int len) {
       ESP_LOGV(TAG, "Distance resolution is: %s", const_cast<char *>(distance_resolution.c_str()));
 #ifdef USE_SELECT
       if (this->distance_resolution_select_ != nullptr &&
-          this->distance_resolution_select_->state != distance_resolution) {
+          this->distance_resolution_select_->current_option() != distance_resolution) {
         this->distance_resolution_select_->publish_state(distance_resolution);
       }
 #endif
@@ -512,10 +511,12 @@ bool LD2410BLEComponent::handle_ack_data_(uint8_t *buffer, int len) {
       ESP_LOGV(TAG, "Light threshold is: %f", this->light_threshold_);
       ESP_LOGV(TAG, "Out pin level is: %s", const_cast<char *>(this->out_pin_level_.c_str()));
 #ifdef USE_SELECT
-      if (this->light_function_select_ != nullptr && this->light_function_select_->state != this->light_function_) {
+      if (this->light_function_select_ != nullptr &&
+          this->light_function_select_->current_option() != this->light_function_) {
         this->light_function_select_->publish_state(this->light_function_);
       }
-      if (this->out_pin_level_select_ != nullptr && this->out_pin_level_select_->state != this->out_pin_level_) {
+      if (this->out_pin_level_select_ != nullptr &&
+          this->out_pin_level_select_->current_option() != this->out_pin_level_) {
         this->out_pin_level_select_->publish_state(this->out_pin_level_);
       }
 #endif
@@ -777,11 +778,11 @@ void LD2410BLEComponent::set_light_out_control() {
   }
 #endif
 #ifdef USE_SELECT
-  if (this->light_function_select_ != nullptr && this->light_function_select_->has_state()) {
-    this->light_function_ = this->light_function_select_->state;
+  if (this->light_function_select_ != nullptr && !this->light_function_select_->current_option().empty()) {
+    this->light_function_ = this->light_function_select_->current_option().str();
   }
-  if (this->out_pin_level_select_ != nullptr && this->out_pin_level_select_->has_state()) {
-    this->out_pin_level_ = this->out_pin_level_select_->state;
+  if (this->out_pin_level_select_ != nullptr && !this->out_pin_level_select_->current_option().empty()) {
+    this->out_pin_level_ = this->out_pin_level_select_->current_option().str();
   }
 #endif
   if (this->light_function_.empty() || this->out_pin_level_.empty() || this->light_threshold_ < 0) {

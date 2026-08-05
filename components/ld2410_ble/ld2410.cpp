@@ -19,7 +19,10 @@ namespace ld2410_ble{
 static const char *const TAG = "ld2410";
 
 void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
-  ESP_LOGI(TAG, "GATTS Event received: %d", event);
+  // This fires on every GATT event, including ESP_GATTC_NOTIFY_EVT -- which is every single
+  // sensor reading (~10/s while connected). ESP_LOGV keeps it out of INFO/DEBUG logs, where
+  // it drowned out everything else; VERBOSE is still there for wire-level debugging.
+  ESP_LOGV(TAG, "GATTS Event received: %d", event);
 
   switch (event) {
 

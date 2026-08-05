@@ -508,7 +508,9 @@ void LD2410BLEComponent::handle_periodic_data_(uint8_t *buffer, int len) {
     for (std::vector<sensor::Sensor *>::size_type i = 0; i != this->gate_move_sensors_.size(); i++) {
       sensor::Sensor *s = this->gate_move_sensors_[i];
       if (s != nullptr) {
-        s->publish_state(buffer[MOVING_SENSOR_START + i]);
+        float new_value = buffer[MOVING_SENSOR_START + i];
+        if (s->get_state() != new_value)
+          s->publish_state(new_value);
       }
     }
     /*
@@ -517,7 +519,9 @@ void LD2410BLEComponent::handle_periodic_data_(uint8_t *buffer, int len) {
     for (std::vector<sensor::Sensor *>::size_type i = 0; i != this->gate_still_sensors_.size(); i++) {
       sensor::Sensor *s = this->gate_still_sensors_[i];
       if (s != nullptr) {
-        s->publish_state(buffer[STILL_SENSOR_START + i]);
+        float new_value = buffer[STILL_SENSOR_START + i];
+        if (s->get_state() != new_value)
+          s->publish_state(new_value);
       }
     }
     /*

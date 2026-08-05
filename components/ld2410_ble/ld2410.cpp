@@ -39,11 +39,18 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         break;
       }
 
-      ESP_LOGI(TAG, "Found notify characteristic %s on device %s", this->char_notify_uuid_.to_string().c_str(), this->parent()->address_str());
+      {
+        char uuid_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGI(TAG, "Found notify characteristic %s on device %s", this->char_notify_uuid_.to_str(uuid_buf),
+                this->parent()->address_str());
+      }
 
       auto *cmd_chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
       if (cmd_chr == nullptr) {
-        ESP_LOGI("TAG", "Characteristic %s was not found in service %s", this->char_command_uuid_.to_string().c_str(), this->service_uuid_.to_string().c_str());
+        char cmd_uuid_buf[esp32_ble::UUID_STR_LEN];
+        char svc_uuid_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGI("TAG", "Characteristic %s was not found in service %s",
+                this->char_command_uuid_.to_str(cmd_uuid_buf), this->service_uuid_.to_str(svc_uuid_buf));
         break;
       }
       this->char_handle = cmd_chr->handle;
@@ -58,11 +65,16 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         ESP_LOGI(TAG, "Write type: ESP_GATT_WRITE_TYPE_NO_RSP");
 
       } else {
-        ESP_LOGE(TAG, "Characteristic %s does not allow writing", this->char_command_uuid_.to_string().c_str());
+        char uuid_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGE(TAG, "Characteristic %s does not allow writing", this->char_command_uuid_.to_str(uuid_buf));
         break;
       }
       this->node_state = espbt::ClientState::ESTABLISHED;
-      ESP_LOGD(TAG, "Found command characteristic %s on device %s", this->char_command_uuid_.to_string().c_str(), this->parent()->address_str());
+      {
+        char uuid_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGD(TAG, "Found command characteristic %s on device %s", this->char_command_uuid_.to_str(uuid_buf),
+                this->parent()->address_str());
+      }
 
       this->node_state = espbt::ClientState::ESTABLISHED;
       if (this->ble_status_binary_sensor_ != nullptr) {
@@ -118,7 +130,8 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
           break;
         }
         this->node_state = espbt::ClientState::ESTABLISHED;
-        ESP_LOGD(TAG, "Register for notify on %s complete", this->char_notify_uuid_.to_string().c_str());
+        char uuid_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGD(TAG, "Register for notify on %s complete", this->char_notify_uuid_.to_str(uuid_buf));
       }
       break;
     }

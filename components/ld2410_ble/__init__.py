@@ -101,7 +101,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(LD2410BLEComponent),
-            cv.Optional(CONF_PASSWORD, default="HiLink"): cv.string_strict,
+            cv.Optional(CONF_PASSWORD, default="HiLink"): cv.sensitive(cv.string_strict),
             cv.Optional(CONF_BLE_CLIENT_ID): cv.use_id(ble_client.BLEClient),
             cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_MAC_SUFFIX, default=MAC_SUFFIX_DISABLED): _validate_mac_suffix,
@@ -155,13 +155,19 @@ BluetoothPasswordSetAction = ld2410_ble_ns.class_(
 BLUETOOTH_PASSWORD_SET_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(LD2410BLEComponent),
-        cv.Required(CONF_PASSWORD): cv.templatable(cv.string_strict),
+        cv.Required(CONF_PASSWORD): cv.sensitive(cv.templatable(cv.string_strict)),
     }
 )
 
 
 @automation.register_action(
-    "bluetooth_password.set", BluetoothPasswordSetAction, BLUETOOTH_PASSWORD_SET_SCHEMA
+    "bluetooth_password.set",
+    BluetoothPasswordSetAction,
+    BLUETOOTH_PASSWORD_SET_SCHEMA,
+    # BluetoothPasswordSetAction::play() (automation.h) is a plain synchronous override --
+    # it calls set_bluetooth_password() directly and returns, no play_complex()/play_next_()
+    # deferral to a callback, timer, or loop().
+    synchronous=True,
 )
 async def bluetooth_password_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

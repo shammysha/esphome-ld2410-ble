@@ -136,6 +136,31 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
   }
 }
 
+bool LD2410BLEComponent::parse_device(const espbt::ESPBTDevice &device) {
+  if (!this->has_mac_suffix_ || this->ble_address_resolved_) {
+    return false;
+  }
+
+  const uint8_t *address = device.address();
+  if (address[4] != this->mac_suffix_[0] || address[5] != this->mac_suffix_[1]) {
+    return false;
+  }
+
+  ESP_LOGI(TAG, "Found LD2410 by MAC suffix %02X:%02X -> %s", this->mac_suffix_[0], this->mac_suffix_[1],
+          device.address_str().c_str());
+  this->ble_address_resolved_ = true;
+
+  if (this->parent() == nullptr) {
+    ESP_LOGE(TAG, "mac_suffix matched but no ble_client is attached to redirect");
+    return true;
+  }
+
+  this->parent()->set_address(device.address_uint64());
+  this->parent()->set_enabled(true);
+  this->parent()->connect();
+  return true;
+}
+
 void LD2410BLEComponent::update() {
   if (this->parent() == nullptr) {
     return;  // BLE not configured for this instance (UART-only)
@@ -238,6 +263,10 @@ void LD2410BLEComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LD2410:");
   ESP_LOGCONFIG(TAG, "  UART transport: %s", this->uart_enabled_ ? "enabled" : "not configured");
   ESP_LOGCONFIG(TAG, "  BLE transport: %s", this->parent() != nullptr ? "enabled" : "not configured");
+  if (this->has_mac_suffix_) {
+    ESP_LOGCONFIG(TAG, "  BLE MAC suffix: %02X:%02X (%s)", this->mac_suffix_[0], this->mac_suffix_[1],
+                  this->ble_address_resolved_ ? "resolved" : "scanning");
+  }
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "TargetBinarySensor", this->target_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "MovingTargetBinarySensor", this->moving_target_binary_sensor_);

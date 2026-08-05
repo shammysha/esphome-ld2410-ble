@@ -123,7 +123,10 @@ enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
 //  char cmd[2] = {enable ? 0xFF : 0xFE, 0x00};
 
 
-class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClientNode, public uart::UARTDevice {
+class LD2410BLEComponent : public PollingComponent,
+                          public ble_client::BLEClientNode,
+                          public uart::UARTDevice,
+                          public espbt::ESPBTDeviceListener {
 #ifdef USE_SENSOR
   SUB_SENSOR(moving_target_distance)
   SUB_SENSOR(still_target_distance)
@@ -179,6 +182,17 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
   // transport whenever it has produced a valid frame recently; BLE (always kept connected
   // in the background once configured) is used as a fallback when UART goes quiet.
   void mark_uart_configured() { this->uart_enabled_ = true; }
+
+  // Called from codegen when `mac_suffix` is configured instead of (or alongside) a fixed
+  // mac_address on the referenced ble_client. `high`/`low` are the last 2 bytes of the MAC,
+  // as shown in the HiLink phone app. Once a matching advertisement is seen, the ble_client
+  // this node is attached to gets redirected to the discovered address.
+  void set_mac_suffix(uint8_t high, uint8_t low) {
+    this->mac_suffix_[0] = high;
+    this->mac_suffix_[1] = low;
+    this->has_mac_suffix_ = true;
+  }
+  bool parse_device(const espbt::ESPBTDevice &device) override;
 
   void set_light_out_control();
   void set_throttle(uint16_t value) { this->throttle_ = value; };
@@ -250,6 +264,11 @@ class LD2410BLEComponent : public PollingComponent, public ble_client::BLEClient
   uint32_t last_ble_frame_millis_{0};
   bool last_reported_uart_active_{false};
   bool transport_diag_published_{false};
+
+  // MAC-suffix discovery (see set_mac_suffix()/parse_device()).
+  bool has_mac_suffix_{false};
+  bool ble_address_resolved_{false};
+  uint8_t mac_suffix_[2]{0, 0};
   uint8_t uart_buffer_[MAX_LINE_LENGTH]{};
   uint8_t uart_buffer_pos_{0};
 

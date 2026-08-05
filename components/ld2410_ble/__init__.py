@@ -1,8 +1,11 @@
+import re
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import ble_client, uart
+from esphome.components import ble_client, uart, esp32_ble_tracker
 from esphome import automation
 from esphome.automation import maybe_simple_id
+from esphome.core import ID
 from esphome.const import (
     CONF_ID,
     CONF_THROTTLE,
@@ -19,24 +22,77 @@ from esphome.const import (
 # The component unconditionally inherits uart::UARTDevice in C++ (to support UART/BLE
 # failover) even when a given instance only configures ble_client_id -- AUTO_LOAD makes sure
 # uart's headers/sources are always present in the build, not just when uart_id is used.
+#
+# The mirror image (ble_client::BLEClientNode always inherited too, needed even for a
+# UART-only instance) can't get the same AUTO_LOAD treatment: unlike uart, the ble_client
+# component doesn't declare MULTI_CONF_NO_DEFAULT, so auto-loading it with zero configured
+# instances fails config validation ("'mac_address' is a required option for [ble_client]")
+# instead of degrading to an empty list the way uart does. Practically this only matters for
+# a *pure* UART-only device (no ble_client_id anywhere) -- and for that case the native
+# `ld2410` component is the better choice anyway, so it isn't worth the invasive
+# #ifdef USE_BLE_CLIENT refactor (every ble_client-touching call site in ld2410.cpp/h) to
+# support it. A device with any ble_client_id/mac_suffix use compiles fine either way, since
+# that already forces ble_client to be genuinely loaded.
 AUTO_LOAD = ["uart"]
 CODEOWNERS = ["@shammysha", "@sebcaps", "@regevbr"]
 MULTI_CONF = True
 
 ld2410_ble_ns = cg.esphome_ns.namespace("ld2410_ble")
 LD2410BLEComponent = ld2410_ble_ns.class_(
-    "LD2410BLEComponent", ble_client.BLEClientNode, uart.UARTDevice, cg.Component
+    "LD2410BLEComponent",
+    ble_client.BLEClientNode,
+    uart.UARTDevice,
+    esp32_ble_tracker.ESPBTDeviceListener,
+    cg.Component,
 )
 
 CONF_LD2410_ID = "ld2410_id"
 CONF_BLE_CLIENT_ID = "ble_client_id"
+CONF_MAC_SUFFIX = "mac_suffix"
+
+# The HiLink phone app identifies a module by only the last 2 bytes (4 hex digits) of its
+# MAC address. "FF:63", "ff63", etc. are all accepted. "unknown" is the disabled sentinel,
+# matching the tx/rx/mac_address 'unknown' convention already used by the packages templates
+# in this repo -- it lets a template always include a `mac_suffix: ${mac_suffix}` line, with
+# most instances simply never overriding the substitution away from its default.
+MAC_SUFFIX_RE = re.compile(r"^([0-9A-Fa-f]{2}):?([0-9A-Fa-f]{2})$")
+MAC_SUFFIX_DISABLED = "unknown"
 
 
-def _require_at_least_one_transport(config):
-    if CONF_BLE_CLIENT_ID not in config and CONF_UART_ID not in config:
+def _validate_mac_suffix(value):
+    value = cv.string_strict(value)
+    if value.lower() == MAC_SUFFIX_DISABLED:
+        return None
+    match = MAC_SUFFIX_RE.match(value)
+    if match is None:
         raise cv.Invalid(
-            "ld2410_ble requires at least one of 'ble_client_id' or 'uart_id' "
-            "(configure both for UART/BLE failover)"
+            "mac_suffix must be the last 2 bytes of the MAC address, as shown in the "
+            "HiLink app, e.g. 'FF:63' or 'FF63'"
+        )
+    return [int(match.group(1), 16), int(match.group(2), 16)]
+
+
+def _validate_ld2410_ble(config):
+    # ble_client_id is unconditionally required (not just "at least one of ble_client_id/
+    # uart_id"): the C++ class unconditionally inherits ble_client::BLEClientNode, and unlike
+    # uart, the ble_client component can't be AUTO_LOAD-ed with zero configured instances (it
+    # doesn't declare MULTI_CONF_NO_DEFAULT, so validation fails asking for a mac_address
+    # instead of degrading to an empty list). A pure UART-only device is better served by the
+    # native `ld2410` component anyway, which doesn't carry any BLE/esp32_ble_tracker cost.
+    if CONF_BLE_CLIENT_ID not in config:
+        raise cv.Invalid(
+            "ld2410_ble requires 'ble_client_id' (uart_id may additionally be configured for "
+            "UART/BLE failover, but BLE is not optional for this component -- for a "
+            "UART-only LD2410, use the native 'ld2410' component instead)"
+        )
+    if config.get(CONF_MAC_SUFFIX) is not None:
+        # Resolve esp32_ble_id (the same way esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA would)
+        # only for instances that actually use mac_suffix -- adding this key unconditionally
+        # (e.g. via .extend(ESP_BLE_DEVICE_SCHEMA) on the base schema) would make ESPHome's
+        # final validation require an esp32_ble_tracker: to exist even for instances that
+        # never use mac_suffix.
+        config[esp32_ble_tracker.CONF_ESP32_BLE_ID] = ID(
+            None, is_declaration=False, type=esp32_ble_tracker.ESP32BLETracker
         )
     return config
 
@@ -48,9 +104,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSWORD, default="HiLink"): cv.string_strict,
             cv.Optional(CONF_BLE_CLIENT_ID): cv.use_id(ble_client.BLEClient),
             cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
+            cv.Optional(CONF_MAC_SUFFIX, default=MAC_SUFFIX_DISABLED): _validate_mac_suffix,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    _require_at_least_one_transport,
+    _validate_ld2410_ble,
 )
 
 
@@ -75,6 +132,10 @@ async def to_code(config):
     if CONF_UART_ID in config:
         await uart.register_uart_device(var, config)
         cg.add(var.mark_uart_configured())
+    if config[CONF_MAC_SUFFIX] is not None:
+        await esp32_ble_tracker.register_ble_device(var, config)
+        high_byte, low_byte = config[CONF_MAC_SUFFIX]
+        cg.add(var.set_mac_suffix(high_byte, low_byte))
     cg.add(var.set_password(config[CONF_PASSWORD]))
 
 

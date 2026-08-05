@@ -1,6 +1,7 @@
 substitutions:
   place: 'somewhere'
-  mac_address: 'unknown'
+  mac_address: '00:00:00:00:00:00'
+  mac_suffix: 'unknown'
   password: "HiLink"
   tx: 'unknown'
   rx: 'unknown'
@@ -18,6 +19,9 @@ uart:
 
   - id: !remove ${disabled and place + "_uart"}
 
+# If mac_suffix (below) is set, mac_address here is just a placeholder -- it gets
+# overwritten once a device matching the suffix is found by scanning. Only fill in a
+# real mac_address if you already know it and want to skip discovery.
 ble_client:
   - mac_address: ${mac_address}
     id: ${place}_ble_client
@@ -31,12 +35,14 @@ ld2410_ble:
   - id: ${place}_emi
     uart_id: ${place}_uart
     ble_client_id: ${place}_ble_client
+    mac_suffix: ${mac_suffix}
     password: ${password}
 
   - id: !remove ${disabled and place + "_emi"}
 
 binary_sensor:
   - platform: ld2410_ble
+    id: ${place}_emi_binary_sensors
     ld2410_id: ${place}_emi
     has_target:
       id: ${place}_target
@@ -61,6 +67,7 @@ binary_sensor:
 
 text_sensor:
   - platform: ld2410_ble
+    id: ${place}_emi_text_sensors
     ld2410_id: ${place}_emi
     version:
       id: ${place}_firmware
@@ -77,6 +84,7 @@ text_sensor:
 
 sensor:
   - platform: ld2410_ble
+    id: ${place}_emi_sensors
     ld2410_id: ${place}_emi
     moving_distance:
       id: ${place}_moving_distance
@@ -168,6 +176,7 @@ sensor:
 
 switch:
   - platform: ld2410_ble
+    id: ${place}_emi_switches
     ld2410_id: ${place}_emi
     engineering_mode:
       id: ${place}_engineering_mode
@@ -180,6 +189,7 @@ switch:
 
 button:
   - platform: ld2410_ble
+    id: ${place}_emi_buttons
     ld2410_id: ${place}_emi
     factory_reset:
       id: ${place}_factory_reset
@@ -196,6 +206,7 @@ button:
 
 select:
   - platform: ld2410_ble
+    id: ${place}_emi_selects
     ld2410_id: ${place}_emi
     distance_resolution:
       id: ${place}_distance_resolution
@@ -212,6 +223,7 @@ select:
 
 number:
   - platform: ld2410_ble
+    id: ${place}_emi_numbers
     ld2410_id: ${place}_emi
     timeout:
       id: ${place}_timeout

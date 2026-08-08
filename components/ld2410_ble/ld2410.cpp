@@ -289,6 +289,7 @@ void LD2410BLEComponent::dump_config() {
 #ifdef USE_SWITCH
   LOG_SWITCH("  ", "EngineeringModeSwitch", this->engineering_mode_switch_);
   LOG_SWITCH("  ", "BluetoothSwitch", this->bluetooth_switch_);
+  LOG_SWITCH("  ", "CalibrateSwitch", this->calibrate_switch_);
 #endif
 #ifdef USE_BUTTON
   LOG_BUTTON("  ", "ResetButton", this->reset_button_);
@@ -496,29 +497,36 @@ void LD2410BLEComponent::handle_periodic_data_(uint8_t *buffer, int len) {
     if (this->detection_distance_sensor_->get_state() != new_detect_distance)
       this->detection_distance_sensor_->publish_state(new_detect_distance);
   }
+  // calibrate_switch_ defaults to nullptr (not configured) or on (RESTORE_DEFAULT_ON), so
+  // existing configs keep publishing gate sensors unless someone adds the switch and turns
+  // it off -- meant for muting the 18 g0..g8 entities once you're done calibrating, so they
+  // stop generating a HA event on every notification.
+  bool publish_gates = this->calibrate_switch_ == nullptr || this->calibrate_switch_->state;
   if (engineering_mode) {
     /*
       Moving distance range: 18th byte
       Still distance range: 19th byte
       Moving enery: 20~28th bytes
     */
-    for (std::vector<sensor::Sensor *>::size_type i = 0; i != this->gate_move_sensors_.size(); i++) {
-      sensor::Sensor *s = this->gate_move_sensors_[i];
-      if (s != nullptr) {
-        float new_value = buffer[MOVING_SENSOR_START + i];
-        if (s->get_state() != new_value)
-          s->publish_state(new_value);
+    if (publish_gates) {
+      for (std::vector<sensor::Sensor *>::size_type i = 0; i != this->gate_move_sensors_.size(); i++) {
+        sensor::Sensor *s = this->gate_move_sensors_[i];
+        if (s != nullptr) {
+          float new_value = buffer[MOVING_SENSOR_START + i];
+          if (s->get_state() != new_value)
+            s->publish_state(new_value);
+        }
       }
-    }
-    /*
-      Still energy: 29~37th bytes
-    */
-    for (std::vector<sensor::Sensor *>::size_type i = 0; i != this->gate_still_sensors_.size(); i++) {
-      sensor::Sensor *s = this->gate_still_sensors_[i];
-      if (s != nullptr) {
-        float new_value = buffer[STILL_SENSOR_START + i];
-        if (s->get_state() != new_value)
-          s->publish_state(new_value);
+      /*
+        Still energy: 29~37th bytes
+      */
+      for (std::vector<sensor::Sensor *>::size_type i = 0; i != this->gate_still_sensors_.size(); i++) {
+        sensor::Sensor *s = this->gate_still_sensors_[i];
+        if (s != nullptr) {
+          float new_value = buffer[STILL_SENSOR_START + i];
+          if (s->get_state() != new_value)
+            s->publish_state(new_value);
+        }
       }
     }
     /*
@@ -530,14 +538,16 @@ void LD2410BLEComponent::handle_periodic_data_(uint8_t *buffer, int len) {
         this->light_sensor_->publish_state(new_light_sensor);
     }
   } else {
-    for (auto *s : this->gate_move_sensors_) {
-      if (s != nullptr && !std::isnan(s->get_state())) {
-        s->publish_state(NAN);
+    if (publish_gates) {
+      for (auto *s : this->gate_move_sensors_) {
+        if (s != nullptr && !std::isnan(s->get_state())) {
+          s->publish_state(NAN);
+        }
       }
-    }
-    for (auto *s : this->gate_still_sensors_) {
-      if (s != nullptr && !std::isnan(s->get_state())) {
-        s->publish_state(NAN);
+      for (auto *s : this->gate_still_sensors_) {
+        if (s != nullptr && !std::isnan(s->get_state())) {
+          s->publish_state(NAN);
+        }
       }
     }
     if (this->light_sensor_ != nullptr && !std::isnan(this->light_sensor_->get_state())) {

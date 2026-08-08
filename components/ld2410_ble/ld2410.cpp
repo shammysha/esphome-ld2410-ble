@@ -84,6 +84,12 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         this->ble_status_binary_sensor_->publish_state(true);
       }
 
+      // Anything still queued from before this (re)connect is talking about a session that no
+      // longer exists -- drop it rather than replaying possibly-stale writes against a fresh
+      // GATT connection.
+      this->command_queue_.clear();
+      this->awaiting_ack_command_ = 0;
+
       this->set_permissions();
       this->set_engineering_mode(true, /*force_ble=*/true);
       // Query version/MAC/distance resolution/light control/gate params once the link is
@@ -207,6 +213,7 @@ void LD2410BLEComponent::loop() {
       this->readline_(this->read(), this->uart_buffer_, sizeof(this->uart_buffer_));
     }
   }
+  this->process_command_queue_();
   this->update_transport_diagnostics_();
 }
 
@@ -377,7 +384,10 @@ bool LD2410BLEComponent::write_ble_(const std::vector<uint8_t> &data) {
 
 bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_value, int command_value_len,
                                        bool force_ble) {
-  ESP_LOGV(TAG, "Sending COMMAND %02X", command);
+  if (this->command_queue_.size() >= COMMAND_QUEUE_MAX) {
+    ESP_LOGW(TAG, "Command queue full (%zu); dropping command %02X", this->command_queue_.size(), command);
+    return false;
+  }
 
   int len = 2;
   if (command_value != nullptr)
@@ -398,16 +408,48 @@ bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_v
   }
   data.insert(data.end(), postamble.begin(), postamble.end());
 
-  if (!force_ble && this->should_use_uart_()) {
-    ESP_LOGV(TAG, "Will write %d bytes over UART: %s", data.size(), format_hex_pretty(data).c_str());
-    this->write_array(data.data(), data.size());
-    if (command != CMD_ENABLE_CONF && command != CMD_DISABLE_CONF) {
-      delay(50);  // NOLINT
+  ESP_LOGV(TAG, "Queueing COMMAND %02X (queue depth now %zu)", command, this->command_queue_.size() + 1);
+  uint32_t seq = (command == lowbyte(CMD_QUERY)) ? this->write_seq_ : 0;
+  this->command_queue_.push_back(QueuedCommand{std::move(data), command, force_ble, seq});
+  return true;
+}
+
+void LD2410BLEComponent::process_command_queue_() {
+  if (this->awaiting_ack_command_ != 0) {
+    if (millis() - this->awaiting_ack_since_millis_ < ACK_WAIT_TIMEOUT_MS) {
+      return;  // still waiting for the sensor to ACK the in-flight command
     }
-    return true;
+    ESP_LOGW(TAG, "Timed out waiting for ACK of command %02X", this->awaiting_ack_command_);
+    this->awaiting_ack_command_ = 0;
   }
 
-  return this->write_ble_(data);
+  if (this->command_queue_.empty())
+    return;
+
+  QueuedCommand cmd = std::move(this->command_queue_.front());
+  this->command_queue_.pop_front();
+
+  bool sent;
+  if (!cmd.force_ble && this->should_use_uart_()) {
+    ESP_LOGV(TAG, "Will write %d bytes over UART: %s", cmd.frame.size(), format_hex_pretty(cmd.frame).c_str());
+    this->write_array(cmd.frame.data(), cmd.frame.size());
+    sent = true;
+  } else {
+    sent = this->write_ble_(cmd.frame);
+  }
+
+  if (!sent) {
+    // Transport wasn't actually available at send time (e.g. BLE not connected yet) -- drop it
+    // rather than retrying indefinitely; the next explicit query (or the reconnect path, which
+    // re-queues read_all_info()) will pick up the real state once a transport is usable again.
+    return;
+  }
+
+  this->awaiting_ack_command_ = cmd.command;
+  this->awaiting_ack_since_millis_ = millis();
+  if (cmd.command == lowbyte(CMD_QUERY)) {
+    this->in_flight_query_seq_ = cmd.seq_at_dispatch;
+  }
 }
 
 void LD2410BLEComponent::handle_periodic_data_(uint8_t *buffer, int len) {
@@ -628,6 +670,12 @@ bool LD2410BLEComponent::handle_ack_data_(uint8_t *buffer, int len) {
     this->last_ble_frame_millis_ = millis();
   }
 
+  if (buffer[COMMAND] == this->awaiting_ack_command_) {
+    // Frees the queue slot so process_command_queue_() sends the next pending command --
+    // matches by command byte, same as the old lambda template's `ack_wait` global.
+    this->awaiting_ack_command_ = 0;
+  }
+
   switch (buffer[COMMAND]) {
     case lowbyte(CMD_ENABLE_CONF):
       ESP_LOGV(TAG, "Handled Enable conf command");
@@ -717,29 +765,36 @@ bool LD2410BLEComponent::handle_ack_data_(uint8_t *buffer, int len) {
       if (buffer[10] != 0xAA)
         return true;  // value head=0xAA
 #ifdef USE_NUMBER
-      /*
-        Moving distance range: 13th byte
-        Still distance range: 14th byte
-      */
+      // Only correct a field if no local edit has superseded this query since it was
+      // dispatched (see in_flight_query_seq_/write_seq_ in ld2410.h) -- otherwise this
+      // response is stale relative to that newer edit, and would wrongly stomp it back to the
+      // pre-edit value. That newer edit's own query (already queued behind this one) will
+      // confirm it instead.
       std::vector<std::function<void(void)>> updates;
-      updates.push_back(set_number_value(this->max_move_distance_gate_number_, buffer[12]));
-      updates.push_back(set_number_value(this->max_still_distance_gate_number_, buffer[13]));
+      if (this->max_move_distance_seq_ <= this->in_flight_query_seq_)
+        updates.push_back(set_number_value(this->max_move_distance_gate_number_, buffer[12]));
+      if (this->max_still_distance_seq_ <= this->in_flight_query_seq_)
+        updates.push_back(set_number_value(this->max_still_distance_gate_number_, buffer[13]));
       /*
         Moving Sensitivities: 15~23th bytes
       */
       for (std::vector<number::Number *>::size_type i = 0; i != this->gate_move_threshold_numbers_.size(); i++) {
-        updates.push_back(set_number_value(this->gate_move_threshold_numbers_[i], buffer[14 + i]));
+        if (this->gate_move_threshold_seq_[i] <= this->in_flight_query_seq_)
+          updates.push_back(set_number_value(this->gate_move_threshold_numbers_[i], buffer[14 + i]));
       }
       /*
         Still Sensitivities: 24~32th bytes
       */
       for (std::vector<number::Number *>::size_type i = 0; i != this->gate_still_threshold_numbers_.size(); i++) {
-        updates.push_back(set_number_value(this->gate_still_threshold_numbers_[i], buffer[23 + i]));
+        if (this->gate_still_threshold_seq_[i] <= this->in_flight_query_seq_)
+          updates.push_back(set_number_value(this->gate_still_threshold_numbers_[i], buffer[23 + i]));
       }
       /*
         None Duration: 33~34th bytes
       */
-      updates.push_back(set_number_value(this->timeout_number_, this->two_byte_to_int_(buffer[32], buffer[33])));
+      if (this->timeout_seq_ <= this->in_flight_query_seq_)
+        updates.push_back(
+            set_number_value(this->timeout_number_, this->two_byte_to_int_(buffer[32], buffer[33])));
       for (auto &update : updates) {
         update();
       }
@@ -851,9 +906,12 @@ void LD2410BLEComponent::set_max_distances_timeout() {
                        highbyte(timeout),
                        0x00,
                        0x00};
+  uint32_t seq = ++this->write_seq_;
+  this->max_move_distance_seq_ = seq;
+  this->max_still_distance_seq_ = seq;
+  this->timeout_seq_ = seq;
   this->set_config_mode_(true);
   this->send_command_(CMD_MAXDIST_DURATION, value, 18);
-  delay(50);  // NOLINT
   this->query_parameters_();
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
   this->set_config_mode_(false);
@@ -882,8 +940,10 @@ void LD2410BLEComponent::set_gate_threshold(uint8_t gate) {
   uint8_t value[18] = {0x00, 0x00, lowbyte(gate),   highbyte(gate),   0x00, 0x00,
                        0x01, 0x00, lowbyte(motion), highbyte(motion), 0x00, 0x00,
                        0x02, 0x00, lowbyte(still),  highbyte(still),  0x00, 0x00};
+  uint32_t seq = ++this->write_seq_;
+  this->gate_move_threshold_seq_[gate] = seq;
+  this->gate_still_threshold_seq_[gate] = seq;
   this->send_command_(CMD_GATE_SENS, value, 18);
-  delay(50);  // NOLINT
   this->query_parameters_();
   this->set_config_mode_(false);
 }
@@ -920,7 +980,6 @@ void LD2410BLEComponent::set_light_out_control() {
   uint8_t out_pin_level = OUT_PIN_LEVEL_ENUM_TO_INT.at(this->out_pin_level_);
   uint8_t value[4] = {light_function, light_threshold, out_pin_level, 0x00};
   this->send_command_(CMD_SET_LIGHT_CONTROL, value, 4);
-  delay(50);  // NOLINT
   this->get_light_control_();
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
   this->set_config_mode_(false);

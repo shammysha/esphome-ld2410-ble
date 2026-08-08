@@ -27,6 +27,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
+#include <deque>
 #include <map>
 
 namespace esphome {
@@ -222,7 +223,9 @@ class LD2410BLEComponent : public PollingComponent,
 
  protected:
   int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
-  // force_ble: skip should_use_uart_() and always write over the (already-connected) BLE link —
+  // Builds a frame and queues it rather than transmitting immediately -- see "-- outbound
+  // command queue / ACK tracking --" below for why. force_ble: skip should_use_uart_() and
+  // always write over the (already-connected) BLE link when this command is actually sent —
   // needed for BLE-only setup commands (password gate) and the BLE session bootstrap sequence.
   bool send_command_(uint8_t command_str, const uint8_t *command_value, int command_value_len, bool force_ble = false);
   bool write_ble_(const std::vector<uint8_t> &data);
@@ -257,6 +260,46 @@ class LD2410BLEComponent : public PollingComponent,
            this->last_ble_frame_millis_ != 0 && millis() - this->last_ble_frame_millis_ < TRANSPORT_SILENCE_TIMEOUT_MS;
   }
   void update_transport_diagnostics_();
+
+  // -- outbound command queue / ACK tracking --
+  // send_command_() used to transmit immediately and forget about it: no serialization (two
+  // writes issued close together could go out overlapping/out of order), and no confirmation
+  // that a command actually reached the sensor (a write over a transport that just died is
+  // silently lost, and nothing ever corrects the optimistically-published entity state back
+  // to reality). This mirrors what the original hand-rolled YAML lambda template did with its
+  // `ack_wait` global: queue frames, send one at a time, and only send the next once the
+  // sensor's ACK for the current one arrives (matched by command byte) or a timeout elapses.
+  struct QueuedCommand {
+    std::vector<uint8_t> frame;
+    uint8_t command;
+    bool force_ble;
+    // Only meaningful for CMD_QUERY: this->write_seq_ at the moment this query was queued, so
+    // the response can tell "no field was optimistically edited more recently than this query
+    // was dispatched" -- see in_flight_query_seq_ and the CMD_QUERY case in handle_ack_data_().
+    uint32_t seq_at_dispatch;
+  };
+  static constexpr uint32_t ACK_WAIT_TIMEOUT_MS = 500;
+  static constexpr size_t COMMAND_QUEUE_MAX = 20;
+
+  void process_command_queue_();
+
+  std::deque<QueuedCommand> command_queue_;
+  uint8_t awaiting_ack_command_{0};  // 0 = nothing outstanding; no real command byte is 0x00
+  uint32_t awaiting_ack_since_millis_{0};
+  uint32_t in_flight_query_seq_{0};
+
+  // Bumped on every optimistic number-entity publish (see set_gate_threshold()/
+  // set_max_distances_timeout()); a query response only corrects a field whose own
+  // last-written seq is <= the seq the query was dispatched with -- otherwise a newer local
+  // edit has already superseded it, and that edit's own query (already queued) will confirm it
+  // instead. Without this, a query response delayed behind a second rapid edit to the same
+  // field could overwrite that second edit with the stale pre-edit value.
+  uint32_t write_seq_{0};
+  std::vector<uint32_t> gate_move_threshold_seq_ = std::vector<uint32_t>(9, 0);
+  std::vector<uint32_t> gate_still_threshold_seq_ = std::vector<uint32_t>(9, 0);
+  uint32_t timeout_seq_{0};
+  uint32_t max_move_distance_seq_{0};
+  uint32_t max_still_distance_seq_{0};
 
   bool uart_enabled_{false};
   FrameSource current_frame_source_{FrameSource::BLE};

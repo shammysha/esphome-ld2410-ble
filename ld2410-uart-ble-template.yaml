@@ -186,10 +186,6 @@ switch:
       id: ${place}_bluetooth
       name: ${place} control bluetooth
       internal: ${disabled}
-    calibrate:
-      id: ${place}_calibrate
-      name: ${place} calibrate
-      internal: ${disabled}
 
 button:
   - platform: ld2410_ble

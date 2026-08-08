@@ -155,7 +155,6 @@ class LD2410BLEComponent : public PollingComponent,
 #ifdef USE_SWITCH
   SUB_SWITCH(engineering_mode)
   SUB_SWITCH(bluetooth)
-  SUB_SWITCH(calibrate)
 #endif
 #ifdef USE_BUTTON
   SUB_BUTTON(reset)

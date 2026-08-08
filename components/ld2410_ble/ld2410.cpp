@@ -86,6 +86,10 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 
       this->set_permissions();
       this->set_engineering_mode(true, /*force_ble=*/true);
+      // Query version/MAC/distance resolution/light control/gate params once the link is
+      // actually usable, so entities like light_function/out_pin_level/distance_resolution
+      // aren't stuck at "unknown" until someone manually presses the Query Params button.
+      this->set_timeout(200, [this]() { this->read_all_info(); });
 
       break;
     }
@@ -194,13 +198,6 @@ void LD2410BLEComponent::update() {
       this->status_set_warning();
       ESP_LOGW(TAG, "Error sending read request for sensor, status=%d", status);
     }
-/*
-    ESP_LOGCONFIG(TAG, "Setting up LD2410...");
-    this->read_all_info();
-    ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
-    ESP_LOGCONFIG(TAG, "Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
-    ESP_LOGCONFIG(TAG, "LD2410 setup complete.");
-*/
   }
 }
 

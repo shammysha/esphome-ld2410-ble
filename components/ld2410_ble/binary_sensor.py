@@ -39,7 +39,6 @@ CONFIG_SCHEMA = {
     ),
     cv.Optional(CONF_OUT_PIN_PRESENCE_STATUS): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_PRESENCE,
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         icon=ICON_ACCOUNT,
     ),
     cv.Optional(CONF_BLE_STATUS): binary_sensor.binary_sensor_schema(

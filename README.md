@@ -28,6 +28,10 @@ link is currently alive.
   falling back to BLE otherwise. An `active_transport` diagnostic text sensor reports
   which one is currently preferred.
 - BLE-only or UART-only also both work — just configure the one you have.
+- Optional `mac_suffix` discovery: give just the last 2 bytes of the module's MAC (as
+  shown in the HiLink app) and the component finds and connects to it via BLE scanning.
+- Outbound writes (numbers/switches/selects) are ACK-tracked against the sensor's actual
+  reply before being published, instead of assumed to have succeeded.
 
 ## Installation
 
@@ -79,17 +83,19 @@ text_sensor:
 
 See [`ld2410-ble-component-template.yaml`](ld2410-ble-component-template.yaml) for a BLE-only reusable
 packages template, and [`ld2410-uart-ble-template.yaml`](ld2410-uart-ble-template.yaml)
-for the dual-transport variant — both take `place`/`mac_address`/`password`/`disabled`
-substitutions (and `tx`/`rx` for the dual-transport one) and expose the full entity set.
+for the dual-transport variant — both take `place`/`mac_address`/`mac_suffix`/`password`/
+`disabled` substitutions (and `tx`/`rx` for the dual-transport one) and expose the full
+entity set. `disabled: true` fully removes the instance (no leftover component or entities)
+rather than just hiding it.
 [`ld2410-ble-component-test.yaml`](ld2410-ble-component-test.yaml) / [`ld2410-uart-ble-test.yaml`](ld2410-uart-ble-test.yaml)
 are runnable example device configs built on top of them.
 
 ## Status
 
-Compiles cleanly under both the `esp-idf` and `arduino` ESP32 frameworks. The BLE-only
-path has seen real hardware use; the UART transport and the UART/BLE failover behavior
-itself have been verified to *compile* but not yet exercised on real hardware (e.g.
-pulling the UART wire to confirm a smooth handover to BLE).
+Compiles cleanly under both the `esp-idf` and `arduino` ESP32 frameworks. Both the
+BLE-only and the dual-transport (UART+BLE) variants have now been flashed to real
+hardware; the failover behavior itself (e.g. pulling the UART wire to confirm a smooth
+handover to BLE) hasn't been exercised on real hardware yet.
 
 ## Credits
 

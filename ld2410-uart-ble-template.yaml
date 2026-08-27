@@ -7,38 +7,42 @@ substitutions:
   rx: 'unknown'
   disabled: false
 
-esp32_ble_tracker:
-
-uart:
-  - id: ${place}_uart
-    tx_pin: ${tx}
-    rx_pin: ${rx}
-    baud_rate: 256000
-    parity: NONE
-    stop_bits: 1
-
-  - id: !remove ${disabled and place + "_uart"}
-
-# If mac_suffix (below) is set, mac_address here is just a placeholder -- it gets
-# overwritten once a device matching the suffix is found by scanning. Only fill in a
-# real mac_address if you already know it and want to skip discovery.
-ble_client:
-  - mac_address: ${mac_address}
-    id: ${place}_ble_client
-
-  - id: !remove ${disabled and place + "_ble_client"}
-
-# UART is preferred whenever it has produced a valid frame recently; BLE (kept connected in
-# the background) is used as a fallback if the wired link goes quiet. See active_transport
-# below for a diagnostic showing which one is currently in use.
-ld2410_ble:
-  - id: ${place}_emi
-    uart_id: ${place}_uart
-    ble_client_id: ${place}_ble_client
-    mac_suffix: ${mac_suffix}
-    password: ${password}
-
-  - id: !remove ${disabled and place + "_emi"}
+# `disabled: true` picks ld2410-uart-ble-inactive.yaml (declares nothing at all for this
+# place) instead of ld2410-uart-ble-active.yaml (the real esp32_ble_tracker/uart/ble_client/
+# ld2410_ble declarations) -- a dynamic !include, resolved via Jinja before
+# substitutions/packages merging, rather than the `!remove`-in-place idiom the entity
+# platform blocks below still use.
+#
+# Why these four domains specifically need the whole-file swap instead of `!remove`ing their
+# list items in place (which is what this file used to do, and what the entity platform
+# blocks below still do): `!remove` only ever empties a list's items, it can't delete the
+# list's own top-level key from the merged config -- a `!remove`d-down `ble_client:` block
+# still leaves `ble_client: []` present. ESPHome bundles a domain's C++ sources whenever its
+# key is present at all, regardless of item count, which trips a genuine upstream ESPHome
+# bug: ble_client's own ble_client.h/automation.h reference stale symbol names
+# (espbt::ESPBTDevice, esp32_ble::UUID_STR_LEN) that only resolve once ble_client's own
+# to_code() has actually run for a real instance -- domain-loading it with zero real
+# instances fails to compile. Reproduced minimally with nothing but a bare `ble_client: []`
+# in an otherwise-unrelated config, so this isn't fixable from ld2410_ble's own Python.
+#
+# The entity platform blocks below don't have this problem -- `platform: ld2410_ble` under
+# sensor:/binary_sensor:/etc. is an ordinary entity list, not a component with its own
+# top-level domain key masking a C++ bug, so the established `!remove` companion pattern
+# (keeping both the real entry and its own removal directive in the same list) stays exactly
+# as it always was. That also matters for compatibility with a device's own `!extend`
+# targeting e.g. `${place}_emi_sensors`: ESPHome silently no-ops an !extend whose target id is
+# *also* being !remove'd in the same merged list, which is what lets a device yaml keep an
+# unconditional `!extend ${place}_emi_sensors` even when this place ends up disabled.
+packages:
+  emi: !include
+    file: ${"ld2410-uart-ble-inactive.yaml" if disabled else "ld2410-uart-ble-active.yaml"}
+    vars:
+      place: ${place}
+      mac_address: ${mac_address}
+      mac_suffix: ${mac_suffix}
+      password: ${password}
+      tx: ${tx}
+      rx: ${rx}
 
 binary_sensor:
   - platform: ld2410_ble
@@ -65,6 +69,8 @@ binary_sensor:
       name: ${place} BLE Status
       internal: ${disabled}
 
+  - id: !remove ${disabled and place + "_emi_binary_sensors"}
+
 text_sensor:
   - platform: ld2410_ble
     id: ${place}_emi_text_sensors
@@ -81,6 +87,8 @@ text_sensor:
       id: ${place}_active_transport
       name: ${place} Active Transport
       internal: ${disabled}
+
+  - id: !remove ${disabled and place + "_emi_text_sensors"}
 
 sensor:
   - platform: ld2410_ble
@@ -174,6 +182,8 @@ sensor:
         name: ${place} g8 still energy
         internal: ${disabled}
 
+  - id: !remove ${disabled and place + "_emi_sensors"}
+
 switch:
   - platform: ld2410_ble
     id: ${place}_emi_switches
@@ -186,6 +196,8 @@ switch:
       id: ${place}_bluetooth
       name: ${place} control bluetooth
       internal: ${disabled}
+
+  - id: !remove ${disabled and place + "_emi_switches"}
 
 button:
   - platform: ld2410_ble
@@ -204,6 +216,8 @@ button:
       name: ${place} query params
       internal: ${disabled}
 
+  - id: !remove ${disabled and place + "_emi_buttons"}
+
 select:
   - platform: ld2410_ble
     id: ${place}_emi_selects
@@ -220,6 +234,8 @@ select:
       id: ${place}_out_pin_level
       name: ${place} out pin level
       internal: ${disabled}
+
+  - id: !remove ${disabled and place + "_emi_selects"}
 
 number:
   - platform: ld2410_ble
@@ -304,3 +320,5 @@ number:
       still_threshold:
         name: ${place} g8 still threshold
         internal: ${disabled}
+
+  - id: !remove ${disabled and place + "_emi_numbers"}

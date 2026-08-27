@@ -1,0 +1,25 @@
+substitutions:
+  place: 'somewhere'
+  mac_address: '00:00:00:00:00:00'
+  mac_suffix: 'unknown'
+  password: "HiLink"
+
+# Only ever included (via ld2410-ble-component-template.yaml's dynamic !include) when this
+# place is NOT disabled -- see ld2410-uart-ble-template.yaml's comment for the full reasoning
+# (a genuine upstream ESPHome bug in ble_client, and why the entity platform blocks don't
+# need this same file-swap treatment).
+
+esp32_ble_tracker:
+
+# If mac_suffix (below) is set, mac_address here is just a placeholder -- it gets
+# overwritten once a device matching the suffix is found by scanning. Only fill in a
+# real mac_address if you already know it and want to skip discovery.
+ble_client:
+  - mac_address: ${mac_address}
+    id: ${place}_ble_client
+
+ld2410_ble:
+  - id: ${place}_emi
+    ble_client_id: ${place}_ble_client
+    mac_suffix: ${mac_suffix}
+    password: ${password}

@@ -19,21 +19,39 @@ from esphome.const import (
 )
 
 
-# The component unconditionally inherits uart::UARTDevice in C++ (to support UART/BLE
-# failover) even when a given instance only configures ble_client_id -- AUTO_LOAD makes sure
-# uart's headers/sources are always present in the build, not just when uart_id is used.
+# The component unconditionally inherits uart::UARTDevice AND ble_client::BLEClientNode in
+# C++ (to support UART/BLE failover), so both need their headers/sources present in the build
+# regardless of which one a given instance actually wires up.
 #
-# The mirror image (ble_client::BLEClientNode always inherited too, needed even for a
-# UART-only instance) can't get the same AUTO_LOAD treatment: unlike uart, the ble_client
-# component doesn't declare MULTI_CONF_NO_DEFAULT, so auto-loading it with zero configured
-# instances fails config validation ("'mac_address' is a required option for [ble_client]")
-# instead of degrading to an empty list the way uart does. Practically this only matters for
-# a *pure* UART-only device (no ble_client_id anywhere) -- and for that case the native
-# `ld2410` component is the better choice anyway, so it isn't worth the invasive
-# #ifdef USE_BLE_CLIENT refactor (every ble_client-touching call site in ld2410.cpp/h) to
-# support it. A device with any ble_client_id/mac_suffix use compiles fine either way, since
-# that already forces ble_client to be genuinely loaded.
-AUTO_LOAD = ["uart"]
+# AUTO_LOAD is a *dynamic* callable here (ESPHome's AddDynamicAutoLoadsValidationStep,
+# config.py, priority -5.0) rather than a static list. Confirmed via that step's source:
+#   conf = result.get_nested_item(self.path)
+#   ...
+#   loads = auto_load(conf)
+# it's invoked exactly once per domain, with `conf` being the full (already schema-validated)
+# list of ld2410_ble: instances in this config -- not once per instance -- and only when the
+# ld2410_ble: key is present in config at all. With zero instances (key absent entirely) it
+# never fires, so uart/ble_client are never auto-loaded from here.
+#
+# NOTE this alone does NOT fix `disabled: true` support -- that turned out to need a change
+# on the packages/YAML side instead (see ld2410-uart-ble-inactive.yaml), because the actual
+# bug is triggered by ble_client's own top-level key being *present* in the merged config
+# (even as `ble_client: []`, e.g. after a template's `!remove` empties its list) -- ESPHome
+# bundles a domain's C++ sources whenever its key exists at all, regardless of item count or
+# of what any *other* component's AUTO_LOAD says. Reproduced minimally with nothing but a
+# bare `ble_client: []` in an unrelated config: ble_client.h/automation.h reference stale
+# symbol names (espbt::ESPBTDevice, esp32_ble::UUID_STR_LEN) that only resolve once
+# ble_client's own to_code() has actually run for a real instance, which never happens with
+# zero items. This function is kept anyway as a smaller, genuinely-correct improvement in its
+# own right (a static list would auto-load uart/ble_client even for a bare `ld2410_ble: []`
+# with no real instances, which is never useful).
+def _ld2410_ble_auto_load(config):
+    if not config:
+        return []
+    return ["uart", "ble_client"]
+
+
+AUTO_LOAD = _ld2410_ble_auto_load
 CODEOWNERS = ["@shammysha", "@sebcaps", "@regevbr"]
 MULTI_CONF = True
 

@@ -5,24 +5,18 @@ substitutions:
   password: "HiLink"
   disabled: false
 
-esp32_ble_tracker:
-
-# If mac_suffix (below) is set, mac_address here is just a placeholder -- it gets
-# overwritten once a device matching the suffix is found by scanning. Only fill in a
-# real mac_address if you already know it and want to skip discovery.
-ble_client:
-  - mac_address: ${mac_address}
-    id: ${place}_ble_client
-
-  - id: !remove ${disabled and place + "_ble_client"}
-
-ld2410_ble:
-  - id: ${place}_emi
-    ble_client_id: ${place}_ble_client
-    mac_suffix: ${mac_suffix}
-    password: ${password}
-
-  - id: !remove ${disabled and place + "_emi"}
+# See ld2410-uart-ble-template.yaml's comment for the full reasoning -- same
+# active/inactive-file-swap mechanism (for esp32_ble_tracker:/ble_client:/ld2410_ble: only),
+# same upstream-bug motivation, same `!remove`-in-place idiom kept for the entity platform
+# blocks below.
+packages:
+  emi: !include
+    file: ${"ld2410-ble-component-inactive.yaml" if disabled else "ld2410-ble-component-active.yaml"}
+    vars:
+      place: ${place}
+      mac_address: ${mac_address}
+      mac_suffix: ${mac_suffix}
+      password: ${password}
 
 binary_sensor:
   - platform: ld2410_ble
@@ -49,6 +43,8 @@ binary_sensor:
       name: ${place} BLE Status
       internal: ${disabled}
 
+  - id: !remove ${disabled and place + "_emi_binary_sensors"}
+
 text_sensor:
   - platform: ld2410_ble
     id: ${place}_emi_text_sensors
@@ -61,6 +57,8 @@ text_sensor:
       id: ${place}_mac
       name: ${place} Mac Address
       internal: ${disabled}
+
+  - id: !remove ${disabled and place + "_emi_text_sensors"}
 
 sensor:
   - platform: ld2410_ble
@@ -154,6 +152,8 @@ sensor:
         name: ${place} g8 still energy
         internal: ${disabled}
 
+  - id: !remove ${disabled and place + "_emi_sensors"}
+
 switch:
   - platform: ld2410_ble
     id: ${place}_emi_switches
@@ -166,6 +166,8 @@ switch:
       id: ${place}_bluetooth
       name: ${place} control bluetooth
       internal: ${disabled}
+
+  - id: !remove ${disabled and place + "_emi_switches"}
 
 button:
   - platform: ld2410_ble
@@ -184,6 +186,8 @@ button:
       name: ${place} query params
       internal: ${disabled}
 
+  - id: !remove ${disabled and place + "_emi_buttons"}
+
 select:
   - platform: ld2410_ble
     id: ${place}_emi_selects
@@ -200,6 +204,8 @@ select:
       id: ${place}_out_pin_level
       name: ${place} out pin level
       internal: ${disabled}
+
+  - id: !remove ${disabled and place + "_emi_selects"}
 
 number:
   - platform: ld2410_ble
@@ -284,3 +290,5 @@ number:
       still_threshold:
         name: ${place} g8 still threshold
         internal: ${disabled}
+
+  - id: !remove ${disabled and place + "_emi_numbers"}

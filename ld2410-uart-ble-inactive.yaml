@@ -1,0 +1,17 @@
+# Included instead of ld2410-uart-ble-active.yaml (by ld2410-uart-ble-template.yaml's
+# dynamic !include) whenever a place's `disabled` substitution is true.
+#
+# Deliberately declares NOTHING -- no uart:/ble_client:/ld2410_ble:/esp32_ble_tracker:/entity
+# platform keys at all, not even as empty lists. That distinction matters: the previous
+# design instead kept those keys always-declared in one shared file and used `!remove` on
+# their list items to "disable" a place, which only ever empties the list -- the key itself
+# (e.g. `ble_client: []`) stays present in the merged config. ESPHome still schema-validates
+# and bundles a domain's C++ sources whenever its top-level key is present at all, regardless
+# of item count, which trips a genuine upstream ESPHome bug: ble_client's own
+# ble_client.h/automation.h reference stale symbol names (espbt::ESPBTDevice,
+# esp32_ble::UUID_STR_LEN) that only resolve once ble_client's own to_code() has run for a
+# real instance -- domain-loading it with zero real instances fails to compile. Reproduced
+# minimally with nothing but a bare `ble_client: []` in an unrelated config, so this isn't
+# specific to ld2410_ble or fixable from ld2410_ble's own Python (e.g. a dynamic AUTO_LOAD)
+# -- the only real fix is making sure the key never exists in the first place when disabled,
+# which this active/inactive file split achieves.

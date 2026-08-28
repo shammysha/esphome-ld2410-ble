@@ -102,6 +102,11 @@ def _validate_ld2410_ble(config):
     # doesn't declare MULTI_CONF_NO_DEFAULT, so validation fails asking for a mac_address
     # instead of degrading to an empty list). A pure UART-only device is better served by the
     # native `ld2410` component anyway, which doesn't carry any BLE/esp32_ble_tracker cost.
+    if CONF_DISABLED in config and config[CONF_DISABLED] == True:
+        return config
+    
+    config[CONF_BLE_CLIENT_ID] = cv.use_id(ble_client.BLEClient)
+
     if CONF_BLE_CLIENT_ID not in config:
         raise cv.Invalid(
             "ld2410_ble requires 'ble_client_id' (uart_id may additionally be configured for "
@@ -125,7 +130,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(LD2410BLEComponent),
             cv.Optional(CONF_PASSWORD, default="HiLink"): cv.sensitive(cv.string_strict),
-            cv.Optional(CONF_BLE_CLIENT_ID): cv.use_id(ble_client.BLEClient),
+            cv.Optional(CONF_BLE_CLIENT_ID): cv.string_strict,
             cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_MAC_SUFFIX, default=MAC_SUFFIX_DISABLED): _validate_mac_suffix,
             cv.Optional(CONF_DISABLED, default=True): cv.boolean,

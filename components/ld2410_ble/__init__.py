@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_DISABLED_BY_DEFAULT,
     CONF_UART_ID,
 )
+from zigpy.config.validators import cv_boolean
 
 
 # The component unconditionally inherits uart::UARTDevice AND ble_client::BLEClientNode in
@@ -45,8 +46,14 @@ from esphome.const import (
 # zero items. This function is kept anyway as a smaller, genuinely-correct improvement in its
 # own right (a static list would auto-load uart/ble_client even for a bare `ld2410_ble: []`
 # with no real instances, which is never useful).
+
+CONF_LD2410_ID = "ld2410_id"
+CONF_BLE_CLIENT_ID = "ble_client_id"
+CONF_MAC_SUFFIX = "mac_suffix"
+CONF_DISABLED = "disabled"
+
 def _ld2410_ble_auto_load(config):
-    if not config:
+    if CONF_DISABLED in config and config[CONF_DISABLED] == True:
         return []
     return ["uart", "ble_client"]
 
@@ -64,9 +71,6 @@ LD2410BLEComponent = ld2410_ble_ns.class_(
     cg.Component,
 )
 
-CONF_LD2410_ID = "ld2410_id"
-CONF_BLE_CLIENT_ID = "ble_client_id"
-CONF_MAC_SUFFIX = "mac_suffix"
 
 # The HiLink phone app identifies a module by only the last 2 bytes (4 hex digits) of its
 # MAC address. "FF:63", "ff63", etc. are all accepted. "unknown" is the disabled sentinel,
@@ -123,6 +127,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BLE_CLIENT_ID): cv.use_id(ble_client.BLEClient),
             cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_MAC_SUFFIX, default=MAC_SUFFIX_DISABLED): _validate_mac_suffix,
+            cv.Optional(CONF_ENABLED, default=True): cv_boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_ld2410_ble,

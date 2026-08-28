@@ -128,7 +128,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BLE_CLIENT_ID): cv.use_id(ble_client.BLEClient),
             cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_MAC_SUFFIX, default=MAC_SUFFIX_DISABLED): _validate_mac_suffix,
-            cv.Optional(CONF_DISABLED, default=True): cv_boolean,
+            cv.Optional(CONF_DISABLED, default=True): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_ld2410_ble,

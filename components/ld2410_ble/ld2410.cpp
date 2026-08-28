@@ -683,6 +683,13 @@ bool LD2410BLEComponent::handle_ack_data_(uint8_t *buffer, int len) {
     case lowbyte(CMD_DISABLE_CONF):
       ESP_LOGV(TAG, "Handled Disabled conf command");
       break;
+    case lowbyte(CMD_SET_BAUD_RATE):
+      // The actual reboot + (if uart_enabled_) local UART reload are already scheduled from
+      // set_baud_rate() itself via set_timeout(), independent of when this ACK arrives --
+      // same convention as set_distance_resolution()/set_light_out_control() elsewhere in
+      // this file. Nothing further to do here.
+      ESP_LOGV(TAG, "Handled set baud rate command");
+      break;
     case lowbyte(CMD_VERSION):
       this->version_ = format_version(buffer);
       ESP_LOGV(TAG, "FW Version is: %s", const_cast<char *>(this->version_.c_str()));
@@ -826,6 +833,36 @@ void LD2410BLEComponent::set_distance_resolution(const std::string &state) {
   uint8_t cmd_value[2] = {DISTANCE_RESOLUTION_ENUM_TO_INT.at(state), 0x00};
   this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, 2);
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
+}
+
+void LD2410BLEComponent::set_baud_rate(const std::string &state) {
+  this->set_config_mode_(true);
+  uint8_t cmd_value[2] = {BAUD_RATE_ENUM_TO_INT.at(state), 0x00};
+  this->send_command_(CMD_SET_BAUD_RATE, cmd_value, 2);
+  // Unlike the other setters, deliberately just restart_() here rather than
+  // restart_and_read_all_info() -- matches the native ld2410 component. The sensor reboots
+  // and comes back up talking at the new baud rate.
+  this->set_timeout(200, [this]() { this->restart_(); });
+
+  if (this->uart_enabled_) {
+    // Live-reload this ESP32's own uart: peripheral to match, once the sensor has actually
+    // had time to reboot (not just the 200ms round-trip for the restart command itself) --
+    // native ld2410 doesn't do this (it just logs a reminder to edit YAML and reflash), but
+    // uart::UARTComponent exposes exactly this via set_baud_rate()+load_settings(). Needs
+    // explicit `uart::UARTDevice::` qualification: ble_client::BLEClientNode *also* declares
+    // its own same-named `parent_` (pointing at the BLEClient instead), so plain
+    // `this->parent_` is ambiguous on a class that inherits both.
+    // This only affects the *current* boot -- it doesn't change what's baked into the
+    // compiled firmware, so a future reboot for any other reason still comes back up at the
+    // YAML-configured rate. Updating `baud_rate:` and reflashing is still the right move for
+    // a permanent change; this just means the link doesn't stay broken until then.
+    uint32_t new_baud_rate = std::stoul(state);
+    this->set_timeout(1000, [this, new_baud_rate]() {
+      uart::UARTDevice::parent_->set_baud_rate(new_baud_rate);
+      uart::UARTDevice::parent_->load_settings(false);
+      ESP_LOGI(TAG, "Reloaded local UART to %u baud to match the sensor's new setting", new_baud_rate);
+    });
+  }
 }
 
 void LD2410BLEComponent::set_permissions() {

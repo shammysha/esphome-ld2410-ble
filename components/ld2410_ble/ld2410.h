@@ -56,6 +56,7 @@ static const uint8_t CMD_MAC = 0x00A5;
 static const uint8_t CMD_RESET = 0x00A2;
 static const uint8_t CMD_RESTART = 0x00A3;
 static const uint8_t CMD_BLUETOOTH = 0x00A4;
+static const uint8_t CMD_SET_BAUD_RATE = 0x00A1;
 
 enum DistanceResolutionStructure : uint8_t { DISTANCE_RESOLUTION_0_2 = 0x01, DISTANCE_RESOLUTION_0_75 = 0x00 };
 
@@ -81,6 +82,25 @@ static const std::map<std::string, uint8_t> OUT_PIN_LEVEL_ENUM_TO_INT{{"low", OU
                                                                       {"high", OUT_PIN_LEVEL_HIGH}};
 static const std::map<uint8_t, std::string> OUT_PIN_LEVEL_INT_TO_ENUM{{OUT_PIN_LEVEL_LOW, "low"},
                                                                       {OUT_PIN_LEVEL_HIGH, "high"}};
+
+enum BaudRateStructure : uint8_t {
+  BAUD_RATE_9600 = 0x01,
+  BAUD_RATE_19200 = 0x02,
+  BAUD_RATE_38400 = 0x03,
+  BAUD_RATE_57600 = 0x04,
+  BAUD_RATE_115200 = 0x05,
+  BAUD_RATE_230400 = 0x06,
+  BAUD_RATE_256000 = 0x07,
+  BAUD_RATE_460800 = 0x08,
+};
+
+// Only string->int: unlike distance_resolution/light_function, the sensor never reports its
+// own baud rate back (there's no query command for it) -- the select's displayed value comes
+// from the configured uart_id's own baud_rate at setup(), not from a query response.
+static const std::map<std::string, uint8_t> BAUD_RATE_ENUM_TO_INT{
+    {"9600", BAUD_RATE_9600},     {"19200", BAUD_RATE_19200},   {"38400", BAUD_RATE_38400},
+    {"57600", BAUD_RATE_57600},   {"115200", BAUD_RATE_115200}, {"230400", BAUD_RATE_230400},
+    {"256000", BAUD_RATE_256000}, {"460800", BAUD_RATE_460800}};
 
 // Commands values
 static const uint8_t CMD_MAX_MOVE_VALUE = 0x0000;
@@ -152,6 +172,7 @@ class LD2410BLEComponent : public PollingComponent,
   SUB_SELECT(distance_resolution)
   SUB_SELECT(light_function)
   SUB_SELECT(out_pin_level)
+  SUB_SELECT(baud_rate)
 #endif
 #ifdef USE_SWITCH
   SUB_SWITCH(engineering_mode)
@@ -205,6 +226,12 @@ class LD2410BLEComponent : public PollingComponent,
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
   void set_distance_resolution(const std::string &state);
+  // Sets the sensor's own UART baud rate and restarts it -- does NOT reconfigure this
+  // ESP32's own uart: peripheral (matches the native ld2410 component's behavior exactly,
+  // including logging an explicit reminder once the sensor ACKs it -- see the
+  // CMD_SET_BAUD_RATE case in handle_ack_data_()). The user has to update `baud_rate:` in
+  // their own YAML and reflash to match, or UART communication stays broken after this.
+  void set_baud_rate(const std::string &state);
   void factory_reset();
 
   void set_password(const std::string &password) { this->password_ = password; }

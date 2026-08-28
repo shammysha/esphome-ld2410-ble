@@ -63,3 +63,19 @@ async def to_code(config):
         )
         await cg.register_parented(s, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_light_function_select(s))
+    if baud_rate_config := config.get(CONF_BAUD_RATE):
+        s = await select.new_select(
+            baud_rate_config,
+            options=[
+                "9600",
+                "19200",
+                "38400",
+                "57600",
+                "115200",
+                "230400",
+                "256000",
+                "460800",
+            ],
+        )
+        await cg.register_parented(s, config[CONF_LD2410_ID])
+        cg.add(ld2410_component.set_baud_rate_select(s))

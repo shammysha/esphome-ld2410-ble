@@ -173,5 +173,9 @@ async def bluetooth_password_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_PASSWORD], args, cg.std_string)
-    cg.add(var.bluetooth_set_password(template_))
+    # set_password(), not bluetooth_set_password() -- TEMPLATABLE_VALUE(std::string, password)
+    # in automation.h auto-generates a set_password() setter for the templatable value; play()
+    # then reads it back via .value(x...) and forwards it to the real
+    # set_bluetooth_password() on the parent LD2410BLEComponent.
+    cg.add(var.set_password(template_))
     return var

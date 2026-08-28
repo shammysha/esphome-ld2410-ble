@@ -8,5 +8,5 @@ void BaudRateSelect::control(const std::string &value) {
   this->parent_->set_baud_rate(value);
 }
 
-}  // namespace ld2410
+}  // namespace ld2410_ble
 }  // namespace esphome

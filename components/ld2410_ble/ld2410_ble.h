@@ -373,5 +373,13 @@ class LD2410BLEComponent : public PollingComponent,
 
 };
 
-}  // namespace ld2410
+}  // namespace ld2410_ble
 }  // namespace esphome
+
+// Included at the bottom, after LD2410BLEComponent is fully defined above: automation.h's
+// BluetoothPasswordSetAction::play() calls set_bluetooth_password() on it, so needs the
+// complete type, not just a forward declaration -- and automation.h's own #include "ld2410_ble.h"
+// would otherwise be a no-op this early (this file's own #pragma once), leaving
+// BluetoothPasswordSetAction undefined wherever __init__.py's codegen references it. Never
+// included from anywhere else in the component -- confirmed missing entirely before this.
+#include "automation.h"

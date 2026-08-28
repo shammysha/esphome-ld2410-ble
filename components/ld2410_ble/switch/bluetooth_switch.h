@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/components/switch/switch.h"
-#include "../ld2410.h"
+#include "../ld2410_ble.h"
 
 namespace esphome {
 namespace ld2410_ble{
@@ -14,5 +14,5 @@ class BluetoothSwitch : public switch_::Switch, public Parented<LD2410BLECompone
   void write_state(bool state) override;
 };
 
-}  // namespace ld2410
+}  // namespace ld2410_ble
 }  // namespace esphome

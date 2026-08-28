@@ -10,5 +10,5 @@ void GateThresholdNumber::control(float value) {
   this->parent_->set_gate_threshold(this->gate_);
 }
 
-}  // namespace ld2410
+}  // namespace ld2410_ble
 }  // namespace esphome

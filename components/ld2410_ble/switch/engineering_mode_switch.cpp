@@ -8,5 +8,5 @@ void EngineeringModeSwitch::write_state(bool state) {
   this->parent_->set_engineering_mode(state);
 }
 
-}  // namespace ld2410
+}  // namespace ld2410_ble
 }  // namespace esphome

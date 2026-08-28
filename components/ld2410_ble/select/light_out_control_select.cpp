@@ -8,5 +8,5 @@ void LightOutControlSelect::control(const std::string &value) {
   this->parent_->set_light_out_control();
 }
 
-}  // namespace ld2410
+}  // namespace ld2410_ble
 }  // namespace esphome

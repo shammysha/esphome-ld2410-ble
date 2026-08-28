@@ -1,4 +1,4 @@
-#include "ld2410.h"
+#include "ld2410_ble.h"
 #include "esphome/core/log.h"
 #include <utility>
 
@@ -80,9 +80,11 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
       }
 
       this->node_state = espbt::ClientState::ESTABLISHED;
+#ifdef USE_BINARY_SENSOR
       if (this->ble_status_binary_sensor_ != nullptr) {
         this->ble_status_binary_sensor_->publish_state(true);
       }
+#endif
 
       // Anything still queued from before this (re)connect is talking about a session that no
       // longer exists -- drop it rather than replaying possibly-stale writes against a fresh
@@ -113,9 +115,11 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
     case ESP_GATTC_CLOSE_EVT: {
       ESP_LOGW(TAG, "Disconnected!");
 
+#ifdef USE_BINARY_SENSOR
       if (this->ble_status_binary_sensor_ != nullptr) {
         this->ble_status_binary_sensor_->publish_state(false);
       }
+#endif
       break;
     }
 
@@ -773,7 +777,7 @@ bool LD2410BLEComponent::handle_ack_data_(uint8_t *buffer, int len) {
         return true;  // value head=0xAA
 #ifdef USE_NUMBER
       // Only correct a field if no local edit has superseded this query since it was
-      // dispatched (see in_flight_query_seq_/write_seq_ in ld2410.h) -- otherwise this
+      // dispatched (see in_flight_query_seq_/write_seq_ in ld2410_ble.h) -- otherwise this
       // response is stale relative to that newer edit, and would wrongly stomp it back to the
       // pre-edit value. That newer edit's own query (already queued behind this one) will
       // confirm it instead.
@@ -1027,5 +1031,5 @@ void LD2410BLEComponent::set_gate_move_sensor(int gate, sensor::Sensor *s) { thi
 void LD2410BLEComponent::set_gate_still_sensor(int gate, sensor::Sensor *s) { this->gate_still_sensors_[gate] = s; }
 #endif
 
-}  // namespace ld2410
+}  // namespace ld2410_ble
 }  // namespace esphome

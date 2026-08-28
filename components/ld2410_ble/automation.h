@@ -2,7 +2,7 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "ld2410.h"
+#include "ld2410_ble.h"
 
 namespace esphome {
 namespace ld2410_ble{
@@ -18,5 +18,5 @@ template<typename... Ts> class BluetoothPasswordSetAction : public Action<Ts...>
   LD2410BLEComponent *ld2410_comp_;
 };
 
-}  // namespace ld2410
+}  // namespace ld2410_ble
 }  // namespace esphome

@@ -8,5 +8,5 @@ void MaxDistanceTimeoutNumber::control(float value) {
   this->parent_->set_max_distances_timeout();
 }
 
-}  // namespace ld2410
+}  // namespace ld2410_ble
 }  // namespace esphome

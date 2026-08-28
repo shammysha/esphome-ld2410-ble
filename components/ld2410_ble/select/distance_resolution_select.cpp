@@ -8,5 +8,5 @@ void DistanceResolutionSelect::control(const std::string &value) {
   this->parent_->set_distance_resolution(value);
 }
 
-}  // namespace ld2410
+}  // namespace ld2410_ble
 }  // namespace esphome

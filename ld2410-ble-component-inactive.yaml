@@ -1,5 +1,0 @@
-# Included instead of ld2410-ble-component-active.yaml (by
-# ld2410-ble-component-template.yaml's dynamic !include) whenever a place's `disabled`
-# substitution is true. Deliberately empty -- see ld2410-uart-ble-inactive.yaml for the full
-# reasoning (a genuine upstream ESPHome bug: bundling ble_client's C++ sources whenever its
-# top-level key is present at all, even as an empty list left behind by `!remove`).

@@ -17,7 +17,7 @@ from esphome.const import (
     CONF_DISABLED_BY_DEFAULT,
     CONF_UART_ID,
 )
-from zigpy.config.validators import cv_boolean
+
 
 
 # The component unconditionally inherits uart::UARTDevice AND ble_client::BLEClientNode in

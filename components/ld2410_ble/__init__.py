@@ -19,7 +19,6 @@ from esphome.const import (
 )
 
 
-
 # The component unconditionally inherits uart::UARTDevice AND ble_client::BLEClientNode in
 # C++ (to support UART/BLE failover), so both need their headers/sources present in the build
 # regardless of which one a given instance actually wires up.
@@ -46,14 +45,8 @@ from esphome.const import (
 # zero items. This function is kept anyway as a smaller, genuinely-correct improvement in its
 # own right (a static list would auto-load uart/ble_client even for a bare `ld2410_ble: []`
 # with no real instances, which is never useful).
-
-CONF_LD2410_ID = "ld2410_id"
-CONF_BLE_CLIENT_ID = "ble_client_id"
-CONF_MAC_SUFFIX = "mac_suffix"
-CONF_DISABLED = "disabled"
-
 def _ld2410_ble_auto_load(config):
-    if CONF_DISABLED in config and config[CONF_DISABLED] == True:
+    if not config:
         return []
     return ["uart", "ble_client"]
 
@@ -71,7 +64,9 @@ LD2410BLEComponent = ld2410_ble_ns.class_(
     cg.Component,
 )
 
-
+CONF_LD2410_ID = "ld2410_id"
+CONF_BLE_CLIENT_ID = "ble_client_id"
+CONF_MAC_SUFFIX = "mac_suffix"
 
 # The HiLink phone app identifies a module by only the last 2 bytes (4 hex digits) of its
 # MAC address. "FF:63", "ff63", etc. are all accepted. "unknown" is the disabled sentinel,
@@ -102,11 +97,6 @@ def _validate_ld2410_ble(config):
     # doesn't declare MULTI_CONF_NO_DEFAULT, so validation fails asking for a mac_address
     # instead of degrading to an empty list). A pure UART-only device is better served by the
     # native `ld2410` component anyway, which doesn't carry any BLE/esp32_ble_tracker cost.
-    if CONF_DISABLED in config and config[CONF_DISABLED] == True:
-        return config
-    
-    config[CONF_BLE_CLIENT_ID] = cv.use_id(ble_client.BLEClient)
-
     if CONF_BLE_CLIENT_ID not in config:
         raise cv.Invalid(
             "ld2410_ble requires 'ble_client_id' (uart_id may additionally be configured for "
@@ -130,10 +120,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(LD2410BLEComponent),
             cv.Optional(CONF_PASSWORD, default="HiLink"): cv.sensitive(cv.string_strict),
-            cv.Optional(CONF_BLE_CLIENT_ID): cv.string_strict,
+            cv.Optional(CONF_BLE_CLIENT_ID): cv.use_id(ble_client.BLEClient),
             cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_MAC_SUFFIX, default=MAC_SUFFIX_DISABLED): _validate_mac_suffix,
-            cv.Optional(CONF_DISABLED, default=True): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_ld2410_ble,

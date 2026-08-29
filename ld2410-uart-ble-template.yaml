@@ -7,6 +7,12 @@ substitutions:
   rx: 'unknown'
   disabled: false
 
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [ld2410_ble]
+
 esp32_ble_tracker:
 
 uart:

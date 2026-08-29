@@ -11,12 +11,6 @@ esp32:
   framework:
     type: esp-idf
 
-external_components:
-  - source:
-      type: local
-      path: components
-    components: [ld2410_ble]
-
 wifi:
   min_auth_mode: WPA2
   networks:

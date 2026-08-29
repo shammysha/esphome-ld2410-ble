@@ -19,6 +19,12 @@ namespace ld2410_ble{
 static const char *const TAG = "ld2410";
 
 void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
+  // disabled_: update() never tells the parent ble_client to connect in the first place, so
+  // this shouldn't normally fire at all -- guarded anyway in case a connection was already
+  // in flight when disabled_ was set (e.g. right after boot, before the first update()).
+  if (this->disabled_) {
+    return;
+  }
   // This fires on every GATT event, including ESP_GATTC_NOTIFY_EVT -- which is every single
   // sensor reading (~10/s while connected). ESP_LOGV keeps it out of INFO/DEBUG logs, where
   // it drowned out everything else; VERBOSE is still there for wire-level debugging.
@@ -167,6 +173,11 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 }
 
 bool LD2410BLEComponent::parse_device(const espbt::ESPBTDevice &device) {
+  // Skip the (tiny but nonzero, called for every scanned advertisement) MAC-suffix comparison
+  // entirely while disabled, and -- more importantly -- never auto-connect via a suffix match.
+  if (this->disabled_) {
+    return false;
+  }
   if (!this->has_mac_suffix_ || this->ble_address_resolved_) {
     return false;
   }
@@ -192,6 +203,17 @@ bool LD2410BLEComponent::parse_device(const espbt::ESPBTDevice &device) {
 }
 
 void LD2410BLEComponent::update() {
+  if (this->disabled_) {
+    // Explicitly tell the attached ble_client to stop trying on its own too -- ble_client's
+    // own auto_connect (default true) would otherwise keep attempting a connection on its
+    // own initiative, independent of anything this class does here. Called every update()
+    // cycle rather than once (e.g. from setup()): harmless/idempotent, and avoids depending
+    // on setup() ordering between this component and the ble_client it's attached to.
+    if (this->parent() != nullptr) {
+      this->parent()->set_enabled(false);
+    }
+    return;
+  }
   if (this->parent() == nullptr) {
     return;  // BLE not configured for this instance (UART-only)
   }
@@ -212,6 +234,12 @@ void LD2410BLEComponent::update() {
 }
 
 void LD2410BLEComponent::loop() {
+  if (this->disabled_) {
+    // Deliberately skip draining the UART RX buffer too -- any bytes that arrive while
+    // disabled are just dropped at the hardware FIFO level, which is fine: there's nothing
+    // for this instance to do with them while disabled anyway.
+    return;
+  }
   if (this->uart_enabled_) {
     while (this->available()) {
       this->readline_(this->read(), this->uart_buffer_, sizeof(this->uart_buffer_));
@@ -285,6 +313,7 @@ void LD2410BLEComponent::readline_(int readch, uint8_t *buffer, int len) {
 
 void LD2410BLEComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LD2410:");
+  ESP_LOGCONFIG(TAG, "  Disabled: %s", this->disabled_ ? "yes (no BLE/UART activity, entities hidden)" : "no");
   ESP_LOGCONFIG(TAG, "  UART transport: %s", this->uart_enabled_ ? "enabled" : "not configured");
   ESP_LOGCONFIG(TAG, "  BLE transport: %s", this->parent() != nullptr ? "enabled" : "not configured");
   if (this->has_mac_suffix_) {

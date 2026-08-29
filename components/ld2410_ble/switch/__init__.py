@@ -7,7 +7,7 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ICON_PULSE,
 )
-from .. import CONF_LD2410_ID, LD2410BLEComponent, ld2410_ble_ns
+from .. import CONF_LD2410_ID, LD2410BLEComponent, ld2410_ble_ns, force_internal_if_disabled
 
 BluetoothSwitch = ld2410_ble_ns.class_("BluetoothSwitch", switch.Switch)
 EngineeringModeSwitch = ld2410_ble_ns.class_("EngineeringModeSwitch", switch.Switch)
@@ -34,11 +34,14 @@ CONFIG_SCHEMA = {
 
 async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
+    ld2410_id = config[CONF_LD2410_ID]
     if engineering_mode_config := config.get(CONF_ENGINEERING_MODE):
+        force_internal_if_disabled(engineering_mode_config, ld2410_id)
         s = await switch.new_switch(engineering_mode_config)
         await cg.register_parented(s, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_engineering_mode_switch(s))
     if bluetooth_config := config.get(CONF_BLUETOOTH):
+        force_internal_if_disabled(bluetooth_config, ld2410_id)
         s = await switch.new_switch(bluetooth_config)
         await cg.register_parented(s, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_bluetooth_switch(s))

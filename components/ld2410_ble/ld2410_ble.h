@@ -205,6 +205,16 @@ class LD2410BLEComponent : public PollingComponent,
   // in the background once configured) is used as a fallback when UART goes quiet.
   void mark_uart_configured() { this->uart_enabled_ = true; }
 
+  // Runtime-only "disabled" flag -- deliberately NOT a YAML-level !remove of uart:/
+  // ble_client:/ld2410_ble: (that hits a real upstream ESPHome bug with zero real ble_client
+  // instances; see __init__.py's own comment on CONF_DISABLED for the full story). When set,
+  // this instance never attempts a BLE connection or reads UART at all (see update()/loop()/
+  // parse_device() in the .cpp) -- the underlying uart:/ble_client: components still exist
+  // and compile normally, they're just never driven. Entities are separately forced
+  // internal: true by every platform's to_code() (see force_internal_if_disabled() in
+  // __init__.py), independent of this flag.
+  void set_disabled(bool disabled) { this->disabled_ = disabled; }
+
   // Called from codegen when `mac_suffix` is configured instead of (or alongside) a fixed
   // mac_address on the referenced ble_client. `high`/`low` are the last 2 bytes of the MAC,
   // as shown in the HiLink phone app. Once a matching advertisement is seen, the ble_client
@@ -329,6 +339,7 @@ class LD2410BLEComponent : public PollingComponent,
   uint32_t max_still_distance_seq_{0};
 
   bool uart_enabled_{false};
+  bool disabled_{false};
   FrameSource current_frame_source_{FrameSource::BLE};
   uint32_t last_uart_frame_millis_{0};
   uint32_t last_ble_frame_millis_{0};

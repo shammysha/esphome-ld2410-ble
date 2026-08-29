@@ -8,7 +8,7 @@ from esphome.const import (
     ICON_BLUETOOTH,
     ICON_CHIP,
 )
-from . import CONF_LD2410_ID, LD2410BLEComponent
+from . import CONF_LD2410_ID, LD2410BLEComponent, force_internal_if_disabled
 
 DEPENDENCIES = ["ld2410_ble"]
 
@@ -30,12 +30,16 @@ CONFIG_SCHEMA = {
 
 async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
+    ld2410_id = config[CONF_LD2410_ID]
     if version_config := config.get(CONF_VERSION):
+        force_internal_if_disabled(version_config, ld2410_id)
         sens = await text_sensor.new_text_sensor(version_config)
         cg.add(ld2410_component.set_version_text_sensor(sens))
     if mac_address_config := config.get(CONF_MAC_ADDRESS):
+        force_internal_if_disabled(mac_address_config, ld2410_id)
         sens = await text_sensor.new_text_sensor(mac_address_config)
         cg.add(ld2410_component.set_mac_text_sensor(sens))
     if active_transport_config := config.get(CONF_ACTIVE_TRANSPORT):
+        force_internal_if_disabled(active_transport_config, ld2410_id)
         sens = await text_sensor.new_text_sensor(active_transport_config)
         cg.add(ld2410_component.set_active_transport_text_sensor(sens))

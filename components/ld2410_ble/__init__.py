@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.components import ble_client, uart, esp32_ble_tracker
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.core import ID
+from esphome.core import CORE, ID
 from esphome.const import (
     CONF_ID,
     CONF_THROTTLE,
@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_INTERNAL,
     CONF_NAME,
+    CONF_DISABLED,
     CONF_DISABLED_BY_DEFAULT,
     CONF_UART_ID,
 )
@@ -49,6 +50,46 @@ LD2410BLEComponent = ld2410_ble_ns.class_(
 CONF_LD2410_ID = "ld2410_id"
 CONF_BLE_CLIENT_ID = "ble_client_id"
 CONF_MAC_SUFFIX = "mac_suffix"
+
+# `disabled: true` on ld2410_ble: is a *runtime* flag, not a YAML !remove-style component
+# removal -- deliberately so. Removing uart:/ble_client:/ld2410_ble: down to zero real
+# instances hits a genuine upstream ESPHome bug (ble_client's own headers reference stale
+# symbols that only resolve once its to_code() has run for a real instance -- see the
+# project's own notes/commit history for the full story). Since there's no YAML-level way to
+# conditionally delete a top-level *key* (only list *items*), and no way to synthesize a real,
+# schema-validated ble_client instance from Python either (would need to go through the
+# normal config-validation pipeline, which only processes what's actually in the YAML tree),
+# keeping uart:/ble_client:/ld2410_ble: always real (never empty) sidesteps the bug entirely.
+# "Disabled" instead means: don't do any actual BLE/UART work (set_disabled() in C++, see
+# ld2410_ble.h/.cpp), and hide every entity from Home Assistant regardless of what the
+# template wrote for that entity's own `internal:` field (force_internal_if_disabled() below,
+# used by every platform's to_code()).
+#
+# Stored under CORE.data, not a bare module-level set: the ESPHome Dashboard is a single
+# long-running process that validates/compiles many devices without spawning a fresh
+# subprocess per device (confirmed: no subprocess/Popen use in its own compile path) and
+# without necessarily re-importing this module between them -- a plain module global would
+# leak entries across unrelated devices' compiles (e.g. two devices both using `place: test`
+# would produce the same id and wrongly share disabled-state). CORE.data is the documented,
+# established place for exactly this kind of per-compile-run state (see e.g. the slot_counter
+# helper in esphome/cpp_helpers.py); it's reset between runs, this dict is not.
+_KEY_DISABLED_INSTANCES = "ld2410_ble_disabled_instances"
+
+
+def _disabled_instances() -> set:
+    return CORE.data.setdefault(_KEY_DISABLED_INSTANCES, set())
+
+
+def force_internal_if_disabled(conf: dict, ld2410_id) -> dict:
+    """Force internal: true on an entity's own validated sub-config when its parent
+    ld2410_ble: instance has disabled: true -- regardless of what internal: the entity's own
+    YAML says. Call this on each platform's per-entity config dict *before* passing it to
+    that platform's new_XXX() (e.g. binary_sensor.new_binary_sensor()), since setup_entity()
+    reads CONF_INTERNAL directly off that dict.
+    """
+    if ld2410_id in _disabled_instances():
+        conf[CONF_INTERNAL] = True
+    return conf
 
 # The HiLink phone app identifies a module by only the last 2 bytes (4 hex digits) of its
 # MAC address. "FF:63", "ff63", etc. are all accepted. "unknown" is the disabled sentinel,
@@ -94,6 +135,8 @@ def _validate_ld2410_ble(config):
         config[esp32_ble_tracker.CONF_ESP32_BLE_ID] = ID(
             None, is_declaration=False, type=esp32_ble_tracker.ESP32BLETracker
         )
+    if config.get(CONF_DISABLED):
+        _disabled_instances().add(config[CONF_ID])
     return config
 
 
@@ -105,6 +148,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BLE_CLIENT_ID): cv.use_id(ble_client.BLEClient),
             cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_MAC_SUFFIX, default=MAC_SUFFIX_DISABLED): _validate_mac_suffix,
+            cv.Optional(CONF_DISABLED, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_ld2410_ble,
@@ -137,6 +181,7 @@ async def to_code(config):
         high_byte, low_byte = config[CONF_MAC_SUFFIX]
         cg.add(var.set_mac_suffix(high_byte, low_byte))
     cg.add(var.set_password(config[CONF_PASSWORD]))
+    cg.add(var.set_disabled(config[CONF_DISABLED]))
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(

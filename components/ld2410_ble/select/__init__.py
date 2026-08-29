@@ -9,7 +9,7 @@ from esphome.const import (
     ICON_LIGHTBULB,
     ICON_RULER,
 )
-from .. import CONF_LD2410_ID, LD2410BLEComponent, ld2410_ble_ns
+from .. import CONF_LD2410_ID, LD2410BLEComponent, ld2410_ble_ns, force_internal_if_disabled
 
 BaudRateSelect = ld2410_ble_ns.class_("BaudRateSelect", select.Select)
 DistanceResolutionSelect = ld2410_ble_ns.class_("DistanceResolutionSelect", select.Select)
@@ -47,23 +47,28 @@ CONFIG_SCHEMA = {
 
 async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
+    ld2410_id = config[CONF_LD2410_ID]
     if distance_resolution_config := config.get(CONF_DISTANCE_RESOLUTION):
+        force_internal_if_disabled(distance_resolution_config, ld2410_id)
         s = await select.new_select(
             distance_resolution_config, options=["0.2m", "0.75m"]
         )
         await cg.register_parented(s, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_distance_resolution_select(s))
     if out_pin_level_config := config.get(CONF_OUT_PIN_LEVEL):
+        force_internal_if_disabled(out_pin_level_config, ld2410_id)
         s = await select.new_select(out_pin_level_config, options=["low", "high"])
         await cg.register_parented(s, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_out_pin_level_select(s))
     if light_function_config := config.get(CONF_LIGHT_FUNCTION):
+        force_internal_if_disabled(light_function_config, ld2410_id)
         s = await select.new_select(
             light_function_config, options=["off", "below", "above"]
         )
         await cg.register_parented(s, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_light_function_select(s))
     if baud_rate_config := config.get(CONF_BAUD_RATE):
+        force_internal_if_disabled(baud_rate_config, ld2410_id)
         s = await select.new_select(
             baud_rate_config,
             options=[

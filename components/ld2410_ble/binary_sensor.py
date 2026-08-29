@@ -17,7 +17,7 @@ from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY
 )
-from . import CONF_LD2410_ID, LD2410BLEComponent
+from . import CONF_LD2410_ID, LD2410BLEComponent, force_internal_if_disabled
 
 DEPENDENCIES = ["ld2410_ble"]
 CONF_OUT_PIN_PRESENCE_STATUS = "out_pin_presence_status"
@@ -51,19 +51,25 @@ CONFIG_SCHEMA = {
 
 async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
-    
+    ld2410_id = config[CONF_LD2410_ID]
+
     if has_target_config := config.get(CONF_HAS_TARGET):
+        force_internal_if_disabled(has_target_config, ld2410_id)
         sens = await binary_sensor.new_binary_sensor(has_target_config)
         cg.add(ld2410_component.set_target_binary_sensor(sens))
     if has_moving_target_config := config.get(CONF_HAS_MOVING_TARGET):
+        force_internal_if_disabled(has_moving_target_config, ld2410_id)
         sens = await binary_sensor.new_binary_sensor(has_moving_target_config)
         cg.add(ld2410_component.set_moving_target_binary_sensor(sens))
     if has_still_target_config := config.get(CONF_HAS_STILL_TARGET):
+        force_internal_if_disabled(has_still_target_config, ld2410_id)
         sens = await binary_sensor.new_binary_sensor(has_still_target_config)
         cg.add(ld2410_component.set_still_target_binary_sensor(sens))
     if out_pin_presence_status_config := config.get(CONF_OUT_PIN_PRESENCE_STATUS):
+        force_internal_if_disabled(out_pin_presence_status_config, ld2410_id)
         sens = await binary_sensor.new_binary_sensor(out_pin_presence_status_config)
-        cg.add(ld2410_component.set_out_pin_presence_status_binary_sensor(sens))        
+        cg.add(ld2410_component.set_out_pin_presence_status_binary_sensor(sens))
     if ble_status := config.get(CONF_BLE_STATUS):
+        force_internal_if_disabled(ble_status, ld2410_id)
         sens = await binary_sensor.new_binary_sensor(ble_status)
         cg.add(ld2410_component.set_ble_status_binary_sensor(sens))

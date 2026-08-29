@@ -11,7 +11,7 @@ from esphome.const import (
     ICON_RESTART_ALERT,
     ICON_DATABASE,
 )
-from .. import CONF_LD2410_ID, LD2410BLEComponent, ld2410_ble_ns
+from .. import CONF_LD2410_ID, LD2410BLEComponent, ld2410_ble_ns, force_internal_if_disabled
 
 QueryButton = ld2410_ble_ns.class_("QueryButton", button.Button)
 ResetButton = ld2410_ble_ns.class_("ResetButton", button.Button)
@@ -43,15 +43,19 @@ CONFIG_SCHEMA = {
 
 async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
+    ld2410_id = config[CONF_LD2410_ID]
     if factory_reset_config := config.get(CONF_FACTORY_RESET):
+        force_internal_if_disabled(factory_reset_config, ld2410_id)
         b = await button.new_button(factory_reset_config)
         await cg.register_parented(b, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_reset_button(b))
     if restart_config := config.get(CONF_RESTART):
+        force_internal_if_disabled(restart_config, ld2410_id)
         b = await button.new_button(restart_config)
         await cg.register_parented(b, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_restart_button(b))
     if query_params_config := config.get(CONF_QUERY_PARAMS):
+        force_internal_if_disabled(query_params_config, ld2410_id)
         b = await button.new_button(query_params_config)
         await cg.register_parented(b, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_query_button(b))

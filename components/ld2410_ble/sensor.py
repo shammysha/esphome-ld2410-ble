@@ -13,7 +13,7 @@ from esphome.const import (
     ICON_MOTION_SENSOR,
     ICON_LIGHTBULB,
 )
-from . import CONF_LD2410_ID, LD2410BLEComponent
+from . import CONF_LD2410_ID, LD2410BLEComponent, force_internal_if_disabled
 
 DEPENDENCIES = ["ld2410_ble"]
 CONF_MOVING_DISTANCE = "moving_distance"
@@ -80,30 +80,39 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 
 async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
+    ld2410_id = config[CONF_LD2410_ID]
     if moving_distance_config := config.get(CONF_MOVING_DISTANCE):
+        force_internal_if_disabled(moving_distance_config, ld2410_id)
         sens = await sensor.new_sensor(moving_distance_config)
         cg.add(ld2410_component.set_moving_target_distance_sensor(sens))
     if still_distance_config := config.get(CONF_STILL_DISTANCE):
+        force_internal_if_disabled(still_distance_config, ld2410_id)
         sens = await sensor.new_sensor(still_distance_config)
         cg.add(ld2410_component.set_still_target_distance_sensor(sens))
     if moving_energy_config := config.get(CONF_MOVING_ENERGY):
+        force_internal_if_disabled(moving_energy_config, ld2410_id)
         sens = await sensor.new_sensor(moving_energy_config)
         cg.add(ld2410_component.set_moving_target_energy_sensor(sens))
     if still_energy_config := config.get(CONF_STILL_ENERGY):
+        force_internal_if_disabled(still_energy_config, ld2410_id)
         sens = await sensor.new_sensor(still_energy_config)
         cg.add(ld2410_component.set_still_target_energy_sensor(sens))
     if light_config := config.get(CONF_LIGHT):
+        force_internal_if_disabled(light_config, ld2410_id)
         sens = await sensor.new_sensor(light_config)
         cg.add(ld2410_component.set_light_sensor(sens))
     if detection_distance_config := config.get(CONF_DETECTION_DISTANCE):
+        force_internal_if_disabled(detection_distance_config, ld2410_id)
         sens = await sensor.new_sensor(detection_distance_config)
         cg.add(ld2410_component.set_detection_distance_sensor(sens))
     for x in range(9):
         if gate_conf := config.get(f"g{x}"):
             if move_config := gate_conf.get(CONF_MOVE_ENERGY):
+                force_internal_if_disabled(move_config, ld2410_id)
                 sens = await sensor.new_sensor(move_config)
                 cg.add(ld2410_component.set_gate_move_sensor(x, sens))
             if still_config := gate_conf.get(CONF_STILL_ENERGY):
+                force_internal_if_disabled(still_config, ld2410_id)
                 sens = await sensor.new_sensor(still_config)
                 cg.add(ld2410_component.set_gate_still_sensor(x, sens))
 

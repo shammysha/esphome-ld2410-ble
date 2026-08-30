@@ -90,7 +90,7 @@ ble_client:
 ld2410_ble:
   - id: my_ld2410
     uart_id: my_ld2410_uart        # опционально
-    ble_client_id: my_ld2410_ble_client  # опционально — нужен хотя бы один из двух
+    ble_client_id: my_ld2410_ble_client  # обязателен (см. таблицу в разделе Возможности выше)
     password: "HiLink"             # пароль BLE-доступа, по умолчанию "HiLink"
 
 binary_sensor:

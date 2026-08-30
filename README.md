@@ -87,7 +87,7 @@ ble_client:
 ld2410_ble:
   - id: my_ld2410
     uart_id: my_ld2410_uart        # optional
-    ble_client_id: my_ld2410_ble_client  # optional — at least one of the two is required
+    ble_client_id: my_ld2410_ble_client  # required (see the Features table above)
     password: "HiLink"             # BLE password gate, defaults to "HiLink"
 
 binary_sensor:

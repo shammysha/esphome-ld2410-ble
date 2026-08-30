@@ -45,12 +45,13 @@ them at `ld2410_ble:` instead and add the BLE-specific connection fields below.
 - Changing the `baud_rate` select live-reloads the UART peripheral at the new speed
   instead of just requiring a manual reflash.
 
-`ld2410_ble:` also takes a few options with no equivalent in the native `ld2410:` schema:
+`ld2410_ble:` also takes a few options with no equivalent in the native `ld2410:` schema —
+plus `uart_id`, which exists in native too but behaves differently here:
 
 | Option | Required | Default | Logic |
 | --- | --- | --- | --- |
-| `ble_client_id` | **Yes**, always | — | The `ble_client:` instance to talk to the sensor's onboard BLE radio over. A pure UART-only instance isn't supported (the class always inherits `ble_client::BLEClientNode`) — use the native `ld2410` component for that case instead. |
-| `uart_id` | No | — | The `uart:` bus wired to the sensor. Omit it for a BLE-only instance. |
+| `ble_client_id` | **Yes**, always | — | The `ble_client:` instance to talk to the sensor's onboard BLE radio over. No equivalent in native `ld2410:`. A pure UART-only instance isn't supported (the class always inherits `ble_client::BLEClientNode`) — use the native `ld2410` component for that case instead. |
+| `uart_id` | No | — | The `uart:` bus wired to the sensor — same field native `ld2410:` has, but **required there and optional here**: omit it for a BLE-only instance. |
 | `mac_suffix` | No | `"unknown"` | Last 2 bytes of the module's BLE MAC (as shown in the HiLink app). When set, `ble_client:`'s own `mac_address:` is just a placeholder — the component finds the real device by BLE scan (matching the low 2 bytes of the advertised address) and redirects the `ble_client` to it. `"unknown"` disables discovery. |
 | `password` | No | `"HiLink"` | The BLE password gate the sensor expects before accepting commands. |
 | `disabled` | No | `false` | Runtime flag. `true` stops all BLE/UART activity (no connect/scan/read) and forces every entity to `internal: true` (hidden from Home Assistant) — the instance and its entities stay declared, nothing is removed. |

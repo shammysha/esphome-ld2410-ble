@@ -96,8 +96,7 @@ ld2410_ble:
 
 Полная, напрямую компилируемая версия (с блоками `uart:`/`ble_client:`, на которые ссылаются
 эти три инстанса, и их сущностями) — в
-[`examples/multiple-sensors.yaml`](examples/multiple-sensors.yaml), проверена реальной
-компиляцией на the ESPHome host.
+[`examples/multiple-sensors.yaml`](examples/multiple-sensors.yaml).
 
 Смотрите [`ld2410-ble-component-template.yaml`](ld2410-ble-component-template.yaml) —
 переиспользуемый packages-шаблон только для BLE,

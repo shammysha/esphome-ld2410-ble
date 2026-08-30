@@ -92,8 +92,8 @@ ld2410_ble:
 ```
 
 See [`examples/multiple-sensors.yaml`](examples/multiple-sensors.yaml) for the full,
-directly-compilable version (the `uart:`/`ble_client:` blocks these three instances refer to,
-plus their entities) — verified via a real compile on the ESPHome host.
+directly-compilable version, including the `uart:`/`ble_client:` blocks these three instances
+refer to and their entities.
 
 See [`ld2410-ble-component-template.yaml`](ld2410-ble-component-template.yaml) for a BLE-only
 reusable packages template, [`ld2410-uart-only-template.yaml`](ld2410-uart-only-template.yaml)

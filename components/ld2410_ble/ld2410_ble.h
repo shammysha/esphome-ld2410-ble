@@ -286,6 +286,15 @@ class LD2410BLEComponent : public PollingComponent,
   enum class FrameSource : uint8_t { UART, BLE };
   static constexpr uint8_t MAX_LINE_LENGTH = 46;
   static constexpr uint32_t TRANSPORT_SILENCE_TIMEOUT_MS = 2000;
+  // A UART frame whose footer matched but whose header didn't (see the "incorrect Header"
+  // branch in handle_ack_data_()) is a stronger sign of real transport/framing trouble than
+  // silence is -- most often a coincidental 4-byte footer pattern occurring naturally inside a
+  // long periodic-data frame's own payload (very plausible with engineering mode's many
+  // small per-gate values), which corrupts the UART receive buffer for that cycle. Rather than
+  // wait for uart_recently_healthy_()'s silence-based check to notice, force a hard failover to
+  // BLE for a cooldown window on every such error, extended by each further error -- so a
+  // clean 10s run of UART is required before it's trusted again.
+  static constexpr uint32_t UART_HEADER_ERROR_COOLDOWN_MS = 10000;
 
   bool should_use_uart_();
   bool uart_recently_healthy_() {
@@ -343,6 +352,9 @@ class LD2410BLEComponent : public PollingComponent,
   FrameSource current_frame_source_{FrameSource::BLE};
   uint32_t last_uart_frame_millis_{0};
   uint32_t last_ble_frame_millis_{0};
+  // millis() deadline until which should_use_uart_() forces BLE regardless of otherwise-healthy
+  // UART frames; 0 = no active cooldown. See UART_HEADER_ERROR_COOLDOWN_MS above.
+  uint32_t uart_header_error_until_millis_{0};
   bool last_reported_uart_active_{false};
   bool transport_diag_published_{false};
 

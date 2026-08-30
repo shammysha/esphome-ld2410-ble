@@ -254,6 +254,13 @@ bool LD2410BLEComponent::should_use_uart_() {
   if (!this->uart_enabled_) {
     return false;  // UART not configured at all
   }
+  if (this->uart_header_error_until_millis_ != 0 && millis() < this->uart_header_error_until_millis_) {
+    if (this->parent() != nullptr) {
+      return false;  // Recent UART framing error -> prefer BLE during the cooldown
+    }
+    // No BLE configured to fail over to -- fall through to the normal health check below,
+    // UART is all there is regardless of the recent error.
+  }
   if (this->uart_recently_healthy_()) {
     return true;  // UART is alive -> prefer it
   }
@@ -687,6 +694,12 @@ bool LD2410BLEComponent::handle_ack_data_(uint8_t *buffer, int len) {
   }
   if (buffer[0] != 0xFD || buffer[1] != 0xFC || buffer[2] != 0xFB || buffer[3] != 0xFA) {  // check 4 frame start bytes
     ESP_LOGE(TAG, "Error with last command : incorrect Header");
+    if (this->current_frame_source_ == FrameSource::UART) {
+      // Force should_use_uart_() to prefer BLE for a fresh UART_HEADER_ERROR_COOLDOWN_MS --
+      // each further error while the cooldown is already running pushes the deadline out
+      // further, so a clean run with no errors is what actually lets UART be trusted again.
+      this->uart_header_error_until_millis_ = millis() + UART_HEADER_ERROR_COOLDOWN_MS;
+    }
     return true;
   }
   if (buffer[COMMAND_STATUS] != 0x01) {

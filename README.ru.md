@@ -72,11 +72,26 @@ external_components:
       url: https://github.com/shammysha/esphome-ld2410-ble
       ref: main
     components: [ld2410_ble]
+
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: AA:BB:CC:DD:EE:FF
+    id: my_ble_client
+
+ld2410_ble:
+  - id: my_ld2410
+    ble_client_id: my_ble_client
+
+binary_sensor:
+  - platform: ld2410_ble
+    ld2410_id: my_ld2410
+    has_moving_target:
+      name: Moving Target
 ```
 
-Переиспользуемые `packages:`-шаблоны для всех трёх вариантов транспорта (только BLE, только
-UART, dual-transport) — в [`templates/`](templates/); более полный конфиг с несколькими
-датчиками сразу — в [`examples/`](examples/).
+Более полный референс со всеми опциями и всеми тремя вариантами транспорта (только BLE,
+только UART, dual-transport) — в [`examples/multiple-sensors.yaml`](examples/multiple-sensors.yaml).
 
 ## Благодарности
 

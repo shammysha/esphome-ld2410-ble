@@ -187,8 +187,9 @@ bool LD2410BLEComponent::parse_device(const espbt::ESPBTDevice &device) {
     return false;
   }
 
+  char addr_buf[espbt::ESPBTDevice::MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   ESP_LOGI(TAG, "Found LD2410 by MAC suffix %02X:%02X -> %s", this->mac_suffix_[0], this->mac_suffix_[1],
-          device.address_str().c_str());
+          device.address_str_to(addr_buf));
   this->ble_address_resolved_ = true;
 
   if (this->parent() == nullptr) {
@@ -893,7 +894,8 @@ void LD2410BLEComponent::set_baud_rate(const std::string &state) {
     this->set_timeout(1000, [this, new_baud_rate]() {
       uart::UARTDevice::parent_->set_baud_rate(new_baud_rate);
       uart::UARTDevice::parent_->load_settings(false);
-      ESP_LOGI(TAG, "Reloaded local UART to %u baud to match the sensor's new setting", new_baud_rate);
+      ESP_LOGI(TAG, "Reloaded local UART to %u baud to match the sensor's new setting",
+               static_cast<unsigned>(new_baud_rate));
     });
   }
 }

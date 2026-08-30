@@ -35,18 +35,25 @@ them at `ld2410_ble:` instead and add the BLE-specific connection fields below.
 - **UART + BLE failover**: configure both `uart_id` and `ble_client_id` and the component
   keeps both links open. Sensor readings are published from whichever transport delivers
   a valid frame — so presence data stays continuous if either link drops. Outbound
-  commands go out over UART whenever it has produced a valid frame in the last 2 seconds,
-  falling back to BLE otherwise. An `active_transport` diagnostic text sensor reports
-  which one is currently preferred.
+  commands go out over UART whenever it has produced a valid frame in the last 2 seconds
+  (or immediately fail over to BLE for 10s after a UART framing error), falling back to
+  BLE otherwise. An `active_transport` diagnostic text sensor reports which one is
+  currently preferred.
 - BLE-only or UART-only also both work — just configure the one you have.
-- Optional `mac_suffix` discovery: give just the last 2 bytes of the module's MAC (as
-  shown in the HiLink app) and the component finds and connects to it via BLE scanning.
 - Outbound writes (numbers/switches/selects) are ACK-tracked against the sensor's actual
   reply before being published, instead of assumed to have succeeded.
 - Changing the `baud_rate` select live-reloads the UART peripheral at the new speed
   instead of just requiring a manual reflash.
-- `disabled: true` on `ld2410_ble:` stops all BLE/UART activity and hides every entity
-  from Home Assistant (`internal: true`), without removing the instance itself.
+
+`ld2410_ble:` also takes a few options with no equivalent in the native `ld2410:` schema:
+
+| Option | Required | Default | Logic |
+| --- | --- | --- | --- |
+| `ble_client_id` | **Yes**, always | — | The `ble_client:` instance to talk to the sensor's onboard BLE radio over. A pure UART-only instance isn't supported (the class always inherits `ble_client::BLEClientNode`) — use the native `ld2410` component for that case instead. |
+| `uart_id` | No | — | The `uart:` bus wired to the sensor. Omit it for a BLE-only instance. |
+| `mac_suffix` | No | `"unknown"` | Last 2 bytes of the module's BLE MAC (as shown in the HiLink app). When set, `ble_client:`'s own `mac_address:` is just a placeholder — the component finds the real device by BLE scan (matching the low 2 bytes of the advertised address) and redirects the `ble_client` to it. `"unknown"` disables discovery. |
+| `password` | No | `"HiLink"` | The BLE password gate the sensor expects before accepting commands. |
+| `disabled` | No | `false` | Runtime flag. `true` stops all BLE/UART activity (no connect/scan/read) and forces every entity to `internal: true` (hidden from Home Assistant) — the instance and its entities stay declared, nothing is removed. |
 
 ## Installation
 

@@ -330,6 +330,13 @@ void LD2410BLEComponent::readline_(int readch, uint8_t *buffer, int len) {
   } else {
     ESP_LOGW(TAG, "Max command length exceeded; ignoring");
     this->uart_buffer_pos_ = 0;
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
+    // Same treatment as an "incorrect Header" ACK-parse failure (see handle_ack_data_()) --
+    // running past MAX_LINE_LENGTH without ever hitting a recognized footer means the UART
+    // byte stream is desynced for this cycle (seen on native ld2410 too, not specific to this
+    // fork's buffer size), a real sign of transport trouble worth failing over from.
+    this->uart_header_error_until_millis_ = millis() + UART_HEADER_ERROR_COOLDOWN_MS;
+#endif
     return;
   }
   if (this->uart_buffer_pos_ < 4) {

@@ -107,25 +107,6 @@ entity set.
 [`ld2410-ble-component-test.yaml`](ld2410-ble-component-test.yaml) / [`ld2410-uart-ble-test.yaml`](ld2410-uart-ble-test.yaml)
 are runnable example device configs built on top of them.
 
-## Status
-
-Compiles cleanly under both the `esp-idf` and `arduino` ESP32 frameworks. Both the
-BLE-only and the dual-transport (UART+BLE) variants have now been flashed to real
-hardware; the failover behavior itself (e.g. pulling the UART wire to confirm a smooth
-handover to BLE) hasn't been exercised on real hardware yet.
-
-## Recent changes
-
-- `disabled: true` reworked into a pure runtime flag: the instance, its `uart:`/
-  `ble_client:` links and all its entities are always declared normally in YAML;
-  when disabled, BLE/UART activity simply stops and every entity is forced
-  `internal: true`, hiding it from Home Assistant.
-- Added the `baud_rate` select (present in the schema before, now fully wired up),
-  with a live UART reload on change instead of requiring a manual reflash.
-- `external_components:` moved out of individual device configs and into the shared
-  packages templates.
-- Component source files renamed `ld2410.*` → `ld2410_ble.*` for clarity.
-
 ## Credits
 
 Protocol/entity layout ported from and modeled after ESPHome's own

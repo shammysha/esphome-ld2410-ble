@@ -86,7 +86,7 @@ ble_client:
 
 ld2410_ble:
   - id: my_ld2410
-    uart_id: my_uart          # both wired -- UART preferred, BLE takes over if it drops
+    uart_id: my_uart          # both configured -- UART preferred, BLE takes over if it drops
     ble_client_id: my_ble_client
 
 binary_sensor:

@@ -20,21 +20,22 @@ from esphome.const import (
 )
 
 
-# The component unconditionally inherits uart::UARTDevice in C++ (to support UART/BLE
-# failover) even when a given instance only configures ble_client_id -- AUTO_LOAD makes sure
-# uart's headers/sources are always present in the build, not just when uart_id is used.
+# The C++ class conditionally inherits ble_client::BLEClientNode/esp32_ble_tracker::
+# ESPBTDeviceListener under USE_LD2410_BLE_CLIENT, and uart::UARTDevice under
+# USE_LD2410_UART_ID -- both #define'd below in to_code() whenever the corresponding config
+# key is actually present on *some* instance. This is what makes `ble_client_id`/`uart_id`
+# genuinely independent optionals (see _validate_ld2410_ble): a device using only one
+# transport doesn't pay for the other's BLE/UART machinery in its binary at all.
 #
-# The mirror image (ble_client::BLEClientNode always inherited too, needed even for a
-# UART-only instance) can't get the same AUTO_LOAD treatment: unlike uart, the ble_client
-# component doesn't declare MULTI_CONF_NO_DEFAULT, so auto-loading it with zero configured
-# instances fails config validation ("'mac_address' is a required option for [ble_client]")
-# instead of degrading to an empty list the way uart does. Practically this only matters for
-# a *pure* UART-only device (no ble_client_id anywhere) -- and for that case the native
-# `ld2410` component is the better choice anyway, so it isn't worth the invasive
-# #ifdef USE_BLE_CLIENT refactor (every ble_client-touching call site in ld2410.cpp/h) to
-# support it. A device with any ble_client_id/mac_suffix use compiles fine either way, since
-# that already forces ble_client to be genuinely loaded.
-AUTO_LOAD = ["uart"]
+# uart needs a *dynamic* AUTO_LOAD (a callable, not a static list) for the same reason: it
+# should only be pulled into the build for devices that actually have an instance using
+# uart_id, not unconditionally for every ld2410_ble: device the way it used to be. uart's own
+# MULTI_CONF_NO_DEFAULT lets it degrade to an empty uart: [] gracefully if this ever returns
+# an empty list for every instance on a device -- unlike ble_client (see
+# _validate_ld2410_ble's own comment on why ble_client is never auto-loaded, only ever
+# user-declared).
+def AUTO_LOAD(config):
+    return ["uart"] if CONF_UART_ID in config else []
 CODEOWNERS = ["@shammysha", "@sebcaps", "@regevbr"]
 MULTI_CONF = True
 
@@ -114,18 +115,23 @@ def _validate_mac_suffix(value):
 
 
 def _validate_ld2410_ble(config):
-    # ble_client_id is unconditionally required (not just "at least one of ble_client_id/
-    # uart_id"): the C++ class unconditionally inherits ble_client::BLEClientNode, and unlike
-    # uart, the ble_client component can't be AUTO_LOAD-ed with zero configured instances (it
-    # doesn't declare MULTI_CONF_NO_DEFAULT, so validation fails asking for a mac_address
-    # instead of degrading to an empty list). A pure UART-only device is better served by the
-    # native `ld2410` component anyway, which doesn't carry any BLE/esp32_ble_tracker cost.
-    if CONF_BLE_CLIENT_ID not in config:
+    # At least one of ble_client_id/uart_id is required -- the C++ class only inherits
+    # ble_client::BLEClientNode/esp32_ble_tracker::ESPBTDeviceListener under
+    # USE_LD2410_BLE_CLIENT, and uart::UARTDevice under USE_LD2410_UART_ID (both #define'd in
+    # to_code() below whenever the corresponding key is present on some instance) -- so an
+    # instance with neither key would compile against a class with no transport at all. This
+    # used to be a hard "ble_client_id always" requirement (before that conditional-compile
+    # split existed, the class unconditionally inherited both bases, and ble_client couldn't be
+    # auto-loaded with zero real instances the way uart can -- see AUTO_LOAD's own comment
+    # above); a pure UART-only ld2410_ble: instance is now exactly as viable as a pure
+    # BLE-only one, mirroring the native `ld2410` component's own shape when no BLE is wanted
+    # at all.
+    if CONF_BLE_CLIENT_ID not in config and CONF_UART_ID not in config:
         raise cv.Invalid(
-            "ld2410_ble requires 'ble_client_id' (uart_id may additionally be configured for "
-            "UART/BLE failover, but BLE is not optional for this component -- for a "
-            "UART-only LD2410, use the native 'ld2410' component instead)"
+            "ld2410_ble requires at least one of 'ble_client_id' or 'uart_id'"
         )
+    if config.get(CONF_MAC_SUFFIX) is not None and CONF_BLE_CLIENT_ID not in config:
+        raise cv.Invalid("mac_suffix requires 'ble_client_id' -- it only discovers/redirects a BLE connection")
     if config.get(CONF_MAC_SUFFIX) is not None:
         # Resolve esp32_ble_id (the same way esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA would)
         # only for instances that actually use mac_suffix -- adding this key unconditionally
@@ -172,8 +178,16 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     if CONF_BLE_CLIENT_ID in config:
+        # Compiles in ble_client::BLEClientNode/esp32_ble_tracker::ESPBTDeviceListener as base
+        # classes -- see the class declaration's own #ifdef in ld2410_ble.h. Defining this once
+        # (from whichever instance on the device happens to use ble_client_id first) is enough:
+        # it's a device-wide compile flag, not a per-instance one.
+        cg.add_define("USE_LD2410_BLE_CLIENT")
         await ble_client.register_ble_node(var, config)
     if CONF_UART_ID in config:
+        # Compiles in uart::UARTDevice as a base class -- see AUTO_LOAD's own comment above for
+        # why `uart:` itself also only gets pulled into the build under the same condition.
+        cg.add_define("USE_LD2410_UART_ID")
         await uart.register_uart_device(var, config)
         cg.add(var.mark_uart_configured())
     if config[CONF_MAC_SUFFIX] is not None:

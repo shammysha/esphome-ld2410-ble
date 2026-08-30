@@ -22,9 +22,13 @@
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
+#ifdef USE_LD2410_BLE_CLIENT
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#endif
+#ifdef USE_LD2410_UART_ID
 #include "esphome/components/uart/uart.h"
+#endif
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 #include <deque>
@@ -33,7 +37,9 @@
 namespace esphome {
 namespace ld2410_ble {
 
+#ifdef USE_LD2410_BLE_CLIENT
 namespace espbt = esphome::esp32_ble_tracker;
+#endif
 
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
 
@@ -144,10 +150,17 @@ enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
 //  char cmd[2] = {enable ? 0xFF : 0xFE, 0x00};
 
 
-class LD2410BLEComponent : public PollingComponent,
+class LD2410BLEComponent : public PollingComponent
+#ifdef USE_LD2410_BLE_CLIENT
+    ,
                           public ble_client::BLEClientNode,
-                          public uart::UARTDevice,
-                          public espbt::ESPBTDeviceListener {
+                          public espbt::ESPBTDeviceListener
+#endif
+#ifdef USE_LD2410_UART_ID
+    ,
+                          public uart::UARTDevice
+#endif
+{
 #ifdef USE_SENSOR
   SUB_SENSOR(moving_target_distance)
   SUB_SENSOR(still_target_distance)
@@ -197,13 +210,17 @@ class LD2410BLEComponent : public PollingComponent,
   void update() override;
   void loop() override;
 
+#ifdef USE_LD2410_BLE_CLIENT
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) override;
 //  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
+#endif
 
+#ifdef USE_LD2410_UART_ID
   // Called from codegen when a `uart_id` is configured. UART is treated as the preferred
   // transport whenever it has produced a valid frame recently; BLE (always kept connected
   // in the background once configured) is used as a fallback when UART goes quiet.
   void mark_uart_configured() { this->uart_enabled_ = true; }
+#endif
 
   // Runtime-only "disabled" flag -- deliberately NOT a YAML-level !remove of uart:/
   // ble_client:/ld2410_ble: (that hits a real upstream ESPHome bug with zero real ble_client
@@ -215,6 +232,7 @@ class LD2410BLEComponent : public PollingComponent,
   // __init__.py), independent of this flag.
   void set_disabled(bool disabled) { this->disabled_ = disabled; }
 
+#ifdef USE_LD2410_BLE_CLIENT
   // Called from codegen when `mac_suffix` is configured instead of (or alongside) a fixed
   // mac_address on the referenced ble_client. `high`/`low` are the last 2 bytes of the MAC,
   // as shown in the HiLink phone app. Once a matching advertisement is seen, the ble_client
@@ -225,6 +243,7 @@ class LD2410BLEComponent : public PollingComponent,
     this->has_mac_suffix_ = true;
   }
   bool parse_device(const espbt::ESPBTDevice &device) override;
+#endif
 
   void set_light_out_control();
   void set_throttle(uint16_t value) { this->throttle_ = value; };
@@ -265,12 +284,18 @@ class LD2410BLEComponent : public PollingComponent,
   // always write over the (already-connected) BLE link when this command is actually sent —
   // needed for BLE-only setup commands (password gate) and the BLE session bootstrap sequence.
   bool send_command_(uint8_t command_str, const uint8_t *command_value, int command_value_len, bool force_ble = false);
+#ifdef USE_LD2410_BLE_CLIENT
   bool write_ble_(const std::vector<uint8_t> &data);
+#endif
   void set_config_mode_(bool enable, bool force_ble = false);
+#ifdef USE_LD2410_BLE_CLIENT
   void set_permissions();
+#endif
   void handle_periodic_data_(uint8_t *buffer, int len);
   bool handle_ack_data_(uint8_t *buffer, int len);
+#ifdef USE_LD2410_UART_ID
   void readline_(int readch, uint8_t *buffer, int len);
+#endif
   void query_parameters_();
   void get_version_();
   void get_mac_();
@@ -283,8 +308,13 @@ class LD2410BLEComponent : public PollingComponent,
   // are published from whichever one delivers a valid frame, so presence data stays continuous
   // regardless of which channel is currently alive. `should_use_uart_()` only decides where
   // *outbound* commands go and what the diagnostic text sensor reports.
-  enum class FrameSource : uint8_t { UART, BLE };
+#ifdef USE_LD2410_UART_ID
   static constexpr uint8_t MAX_LINE_LENGTH = 46;
+#endif
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
+  // Only meaningful when both transports exist -- with a single transport there's never a
+  // choice to make, see should_use_uart_()/update_transport_diagnostics_()'s #else paths.
+  enum class FrameSource : uint8_t { UART, BLE };
   static constexpr uint32_t TRANSPORT_SILENCE_TIMEOUT_MS = 2000;
   // A UART frame whose footer matched but whose header didn't (see the "incorrect Header"
   // branch in handle_ack_data_()) is a stronger sign of real transport/framing trouble than
@@ -305,6 +335,12 @@ class LD2410BLEComponent : public PollingComponent,
     return this->parent() != nullptr && this->node_state == espbt::ClientState::ESTABLISHED &&
            this->last_ble_frame_millis_ != 0 && millis() - this->last_ble_frame_millis_ < TRANSPORT_SILENCE_TIMEOUT_MS;
   }
+#endif
+  // Publishes the active_transport diagnostic text sensor when configured -- with only one
+  // transport compiled in, it always reports that one (no health comparison needed); see the
+  // .cpp for the 3-way #if. Left as an always-declared entity/function on purpose: a config
+  // with a single transport can still declare `active_transport`, it just always reads the same
+  // value, which is unsurprising rather than worth forbidding.
   void update_transport_diagnostics_();
 
   // -- outbound command queue / ACK tracking --
@@ -347,37 +383,52 @@ class LD2410BLEComponent : public PollingComponent,
   uint32_t max_move_distance_seq_{0};
   uint32_t max_still_distance_seq_{0};
 
+#ifdef USE_LD2410_UART_ID
   bool uart_enabled_{false};
+#endif
   bool disabled_{false};
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
   FrameSource current_frame_source_{FrameSource::BLE};
-  uint32_t last_uart_frame_millis_{0};
-  uint32_t last_ble_frame_millis_{0};
   // millis() deadline until which should_use_uart_() forces BLE regardless of otherwise-healthy
   // UART frames; 0 = no active cooldown. See UART_HEADER_ERROR_COOLDOWN_MS above.
   uint32_t uart_header_error_until_millis_{0};
+#endif
+#ifdef USE_LD2410_UART_ID
+  uint32_t last_uart_frame_millis_{0};
+#endif
+#ifdef USE_LD2410_BLE_CLIENT
+  uint32_t last_ble_frame_millis_{0};
+#endif
   bool last_reported_uart_active_{false};
   bool transport_diag_published_{false};
 
+#ifdef USE_LD2410_BLE_CLIENT
   // MAC-suffix discovery (see set_mac_suffix()/parse_device()).
   bool has_mac_suffix_{false};
   bool ble_address_resolved_{false};
   uint8_t mac_suffix_[2]{0, 0};
+#endif
+#ifdef USE_LD2410_UART_ID
   uint8_t uart_buffer_[MAX_LINE_LENGTH]{};
   uint8_t uart_buffer_pos_{0};
+#endif
 
+#ifdef USE_LD2410_BLE_CLIENT
   esp_gatt_char_prop_t char_props_{};
   esp_gatt_write_type_t write_type_{};
-
 
   esp32_ble_tracker::ESPBTUUID service_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff0-0000-1000-8000-00805f9b34fb");
   esp32_ble_tracker::ESPBTUUID char_notify_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff1-0000-1000-8000-00805f9b34fb");
   esp32_ble_tracker::ESPBTUUID char_command_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw("0000fff2-0000-1000-8000-00805f9b34fb");
+#endif
 
   int32_t last_periodic_millis_ = millis();
   int32_t last_engineering_mode_change_millis_ = millis();
   uint16_t throttle_;
+#ifdef USE_LD2410_BLE_CLIENT
   uint16_t handle;
   uint16_t char_handle;
+#endif
   std::string version_;
   std::string mac_;
   std::string out_pin_level_;

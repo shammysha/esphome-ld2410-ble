@@ -18,6 +18,7 @@ namespace ld2410_ble{
 
 static const char *const TAG = "ld2410";
 
+#ifdef USE_LD2410_BLE_CLIENT
 void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
   // disabled_: update() never tells the parent ble_client to connect in the first place, so
   // this shouldn't normally fire at all -- guarded anyway in case a connection was already
@@ -135,7 +136,9 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
         break;
       }
 
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
       this->current_frame_source_ = FrameSource::BLE;
+#endif
       this->handle_ack_data_(param->read.value, param->read.value_len);
 
       /*
@@ -161,7 +164,9 @@ void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gat
 
     case ESP_GATTC_NOTIFY_EVT: {
       if (param->notify.handle == this->handle) {
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
         this->current_frame_source_ = FrameSource::BLE;
+#endif
         this->handle_periodic_data_(param->notify.value, param->notify.value_len);
       }
       break;
@@ -202,8 +207,15 @@ bool LD2410BLEComponent::parse_device(const espbt::ESPBTDevice &device) {
   this->parent()->connect();
   return true;
 }
+#endif  // USE_LD2410_BLE_CLIENT
 
+// PollingComponent::update() is pure virtual -- always defined regardless of transport, even
+// though its whole body is currently BLE-only (a periodic GATT poll; UART needs no equivalent,
+// it just keeps reading in loop()). Note update() is never actually scheduled today anyway
+// (no set_update_interval() call anywhere -- see PollingComponent's own SCHEDULER_DONT_RUN
+// default constructor), independent of this refactor.
 void LD2410BLEComponent::update() {
+#ifdef USE_LD2410_BLE_CLIENT
   if (this->disabled_) {
     // Explicitly tell the attached ble_client to stop trying on its own too -- ble_client's
     // own auto_connect (default true) would otherwise keep attempting a connection on its
@@ -232,6 +244,7 @@ void LD2410BLEComponent::update() {
       ESP_LOGW(TAG, "Error sending read request for sensor, status=%d", status);
     }
   }
+#endif  // USE_LD2410_BLE_CLIENT
 }
 
 void LD2410BLEComponent::loop() {
@@ -241,15 +254,18 @@ void LD2410BLEComponent::loop() {
     // for this instance to do with them while disabled anyway.
     return;
   }
+#ifdef USE_LD2410_UART_ID
   if (this->uart_enabled_) {
     while (this->available()) {
       this->readline_(this->read(), this->uart_buffer_, sizeof(this->uart_buffer_));
     }
   }
+#endif
   this->process_command_queue_();
   this->update_transport_diagnostics_();
 }
 
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
 bool LD2410BLEComponent::should_use_uart_() {
   if (!this->uart_enabled_) {
     return false;  // UART not configured at all
@@ -258,8 +274,9 @@ bool LD2410BLEComponent::should_use_uart_() {
     if (this->parent() != nullptr) {
       return false;  // Recent UART framing error -> prefer BLE during the cooldown
     }
-    // No BLE configured to fail over to -- fall through to the normal health check below,
-    // UART is all there is regardless of the recent error.
+    // This instance's own ble_client_id isn't set (even though the device has BLE compiled in
+    // overall, via another instance) -- fall through to the normal health check below, UART is
+    // all there is regardless of the recent error.
   }
   if (this->uart_recently_healthy_()) {
     return true;  // UART is alive -> prefer it
@@ -269,12 +286,14 @@ bool LD2410BLEComponent::should_use_uart_() {
   }
   return false;  // UART is quiet but BLE is alive -> fail over
 }
+#endif  // USE_LD2410_BLE_CLIENT && USE_LD2410_UART_ID
 
 void LD2410BLEComponent::update_transport_diagnostics_() {
 #ifdef USE_TEXT_SENSOR
   if (this->active_transport_text_sensor_ == nullptr) {
     return;
   }
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
   bool uart_active = this->should_use_uart_();
   if (this->transport_diag_published_ && uart_active == this->last_reported_uart_active_) {
     return;
@@ -282,9 +301,24 @@ void LD2410BLEComponent::update_transport_diagnostics_() {
   this->transport_diag_published_ = true;
   this->last_reported_uart_active_ = uart_active;
   this->active_transport_text_sensor_->publish_state(uart_active ? "uart" : "ble");
+#elif defined(USE_LD2410_UART_ID)
+  // Only one transport compiled in -- nothing to compare, always the same value; publish once.
+  if (this->transport_diag_published_) {
+    return;
+  }
+  this->transport_diag_published_ = true;
+  this->active_transport_text_sensor_->publish_state("uart");
+#else
+  if (this->transport_diag_published_) {
+    return;
+  }
+  this->transport_diag_published_ = true;
+  this->active_transport_text_sensor_->publish_state("ble");
 #endif
+#endif  // USE_TEXT_SENSOR
 }
 
+#ifdef USE_LD2410_UART_ID
 void LD2410BLEComponent::readline_(int readch, uint8_t *buffer, int len) {
   if (readch < 0) {
     return;  // No data available
@@ -305,12 +339,16 @@ void LD2410BLEComponent::readline_(int readch, uint8_t *buffer, int len) {
   uint8_t *tail = &buffer[this->uart_buffer_pos_ - 4];
   if (tail[0] == 0xF8 && tail[1] == 0xF7 && tail[2] == 0xF6 && tail[3] == 0xF5) {
     ESP_LOGV(TAG, "Will handle Periodic Data (UART)");
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
     this->current_frame_source_ = FrameSource::UART;
+#endif
     this->handle_periodic_data_(buffer, this->uart_buffer_pos_);
     this->uart_buffer_pos_ = 0;
   } else if (tail[0] == 0x04 && tail[1] == 0x03 && tail[2] == 0x02 && tail[3] == 0x01) {
     ESP_LOGV(TAG, "Will handle ACK Data (UART)");
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
     this->current_frame_source_ = FrameSource::UART;
+#endif
     if (this->handle_ack_data_(buffer, this->uart_buffer_pos_)) {
       this->uart_buffer_pos_ = 0;
     } else {
@@ -318,16 +356,21 @@ void LD2410BLEComponent::readline_(int readch, uint8_t *buffer, int len) {
     }
   }
 }
+#endif  // USE_LD2410_UART_ID
 
 void LD2410BLEComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LD2410:");
   ESP_LOGCONFIG(TAG, "  Disabled: %s", this->disabled_ ? "yes (no BLE/UART activity, entities hidden)" : "no");
+#ifdef USE_LD2410_UART_ID
   ESP_LOGCONFIG(TAG, "  UART transport: %s", this->uart_enabled_ ? "enabled" : "not configured");
+#endif
+#ifdef USE_LD2410_BLE_CLIENT
   ESP_LOGCONFIG(TAG, "  BLE transport: %s", this->parent() != nullptr ? "enabled" : "not configured");
   if (this->has_mac_suffix_) {
     ESP_LOGCONFIG(TAG, "  BLE MAC suffix: %02X:%02X (%s)", this->mac_suffix_[0], this->mac_suffix_[1],
                   this->ble_address_resolved_ ? "resolved" : "scanning");
   }
+#endif  // USE_LD2410_BLE_CLIENT
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "TargetBinarySensor", this->target_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "MovingTargetBinarySensor", this->moving_target_binary_sensor_);
@@ -397,6 +440,7 @@ void LD2410BLEComponent::restart_and_read_all_info() {
   this->set_timeout(1000, [this]() { this->read_all_info(); });
 }
 
+#ifdef USE_LD2410_BLE_CLIENT
 bool LD2410BLEComponent::write_ble_(const std::vector<uint8_t> &data) {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGE(TAG, "Cannot write to BLE characteristic - not connected");
@@ -422,6 +466,7 @@ bool LD2410BLEComponent::write_ble_(const std::vector<uint8_t> &data) {
 
   return true;
 }
+#endif  // USE_LD2410_BLE_CLIENT
 
 bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_value, int command_value_len,
                                        bool force_ble) {
@@ -471,6 +516,8 @@ void LD2410BLEComponent::process_command_queue_() {
   this->command_queue_.pop_front();
 
   bool sent;
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
+  // Both transports compiled in -- genuinely choose per should_use_uart_()/force_ble.
   if (!cmd.force_ble && this->should_use_uart_()) {
     ESP_LOGV(TAG, "Will write %d bytes over UART: %s", cmd.frame.size(), format_hex_pretty(cmd.frame).c_str());
     this->write_array(cmd.frame.data(), cmd.frame.size());
@@ -478,6 +525,15 @@ void LD2410BLEComponent::process_command_queue_() {
   } else {
     sent = this->write_ble_(cmd.frame);
   }
+#elif defined(USE_LD2410_UART_ID)
+  // No BLE compiled in at all -- nothing to choose between, always UART.
+  ESP_LOGV(TAG, "Will write %d bytes over UART: %s", cmd.frame.size(), format_hex_pretty(cmd.frame).c_str());
+  this->write_array(cmd.frame.data(), cmd.frame.size());
+  sent = true;
+#else
+  // No UART compiled in at all -- nothing to choose between, always BLE.
+  sent = this->write_ble_(cmd.frame);
+#endif
 
   if (!sent) {
     // Transport wasn't actually available at send time (e.g. BLE not connected yet) -- drop it
@@ -501,11 +557,17 @@ void LD2410BLEComponent::handle_periodic_data_(uint8_t *buffer, int len) {
   if (buffer[7] != HEAD || buffer[len - 6] != END || buffer[len - 5] != CHECK)  // Check constant values
     return;  // data head=0xAA, data end=0x55, crc=0x00
 
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
   if (this->current_frame_source_ == FrameSource::UART) {
     this->last_uart_frame_millis_ = millis();
   } else {
     this->last_ble_frame_millis_ = millis();
   }
+#elif defined(USE_LD2410_UART_ID)
+  this->last_uart_frame_millis_ = millis();
+#elif defined(USE_LD2410_BLE_CLIENT)
+  this->last_ble_frame_millis_ = millis();
+#endif
 
   /*
     Reduce data update rate to prevent home assistant database size grow fast
@@ -694,12 +756,14 @@ bool LD2410BLEComponent::handle_ack_data_(uint8_t *buffer, int len) {
   }
   if (buffer[0] != 0xFD || buffer[1] != 0xFC || buffer[2] != 0xFB || buffer[3] != 0xFA) {  // check 4 frame start bytes
     ESP_LOGE(TAG, "Error with last command : incorrect Header");
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
     if (this->current_frame_source_ == FrameSource::UART) {
       // Force should_use_uart_() to prefer BLE for a fresh UART_HEADER_ERROR_COOLDOWN_MS --
       // each further error while the cooldown is already running pushes the deadline out
       // further, so a clean run with no errors is what actually lets UART be trusted again.
       this->uart_header_error_until_millis_ = millis() + UART_HEADER_ERROR_COOLDOWN_MS;
     }
+#endif
     return true;
   }
   if (buffer[COMMAND_STATUS] != 0x01) {
@@ -711,11 +775,17 @@ bool LD2410BLEComponent::handle_ack_data_(uint8_t *buffer, int len) {
     return true;
   }
 
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
   if (this->current_frame_source_ == FrameSource::UART) {
     this->last_uart_frame_millis_ = millis();
   } else {
     this->last_ble_frame_millis_ = millis();
   }
+#elif defined(USE_LD2410_UART_ID)
+  this->last_uart_frame_millis_ = millis();
+#elif defined(USE_LD2410_BLE_CLIENT)
+  this->last_ble_frame_millis_ = millis();
+#endif
 
   if (buffer[COMMAND] == this->awaiting_ack_command_) {
     // Frees the queue slot so process_command_queue_() sends the next pending command --
@@ -891,14 +961,19 @@ void LD2410BLEComponent::set_baud_rate(const std::string &state) {
   // and comes back up talking at the new baud rate.
   this->set_timeout(200, [this]() { this->restart_(); });
 
+#ifdef USE_LD2410_UART_ID
   if (this->uart_enabled_) {
     // Live-reload this ESP32's own uart: peripheral to match, once the sensor has actually
     // had time to reboot (not just the 200ms round-trip for the restart command itself) --
     // native ld2410 doesn't do this (it just logs a reminder to edit YAML and reflash), but
-    // uart::UARTComponent exposes exactly this via set_baud_rate()+load_settings(). Needs
-    // explicit `uart::UARTDevice::` qualification: ble_client::BLEClientNode *also* declares
-    // its own same-named `parent_` (pointing at the BLEClient instead), so plain
-    // `this->parent_` is ambiguous on a class that inherits both.
+    // uart::UARTComponent exposes exactly this via set_baud_rate()+load_settings().
+#ifdef USE_LD2410_BLE_CLIENT
+    // Needs explicit `uart::UARTDevice::` qualification: ble_client::BLEClientNode *also*
+    // declares its own same-named `parent_` (pointing at the BLEClient instead), so plain
+    // `this->parent_` is ambiguous on a class that inherits both. With no BLE compiled in at
+    // all, `uart::UARTDevice::parent_` is the only `parent_` in scope and the plain form would
+    // work too, but the qualified form is harmless either way, so it's kept unconditional here.
+#endif
     // This only affects the *current* boot -- it doesn't change what's baked into the
     // compiled firmware, so a future reboot for any other reason still comes back up at the
     // YAML-configured rate. Updating `baud_rate:` and reflashing is still the right move for
@@ -911,8 +986,10 @@ void LD2410BLEComponent::set_baud_rate(const std::string &state) {
                static_cast<unsigned>(new_baud_rate));
     });
   }
+#endif  // USE_LD2410_UART_ID
 }
 
+#ifdef USE_LD2410_BLE_CLIENT
 void LD2410BLEComponent::set_permissions() {
   if (this->password_.length() != 6) {
     ESP_LOGE(TAG, "set_bluetooth_password(): invalid password length, must be exactly 6 chars '%s'", this->password_.c_str());
@@ -924,6 +1001,7 @@ void LD2410BLEComponent::set_permissions() {
   // established regardless of which transport is currently preferred.
   this->send_command_(CMD_PERMISSIONS, cmd_value, 6, /*force_ble=*/true);
 }
+#endif  // USE_LD2410_BLE_CLIENT
 
 void LD2410BLEComponent::set_bluetooth_password(const std::string &password) {
   if (password.length() != 6) {

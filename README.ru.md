@@ -49,12 +49,16 @@ BLE напрямую через `ble_client`, и опционально може
   ручной перепрошивки.
 
 У `ld2410_ble:` также есть несколько опций, которых нет в схеме нативного `ld2410:` —
-плюс `uart_id`, которая в нативном компоненте тоже есть, но ведёт себя иначе:
+плюс `uart_id`, которая в нативном компоненте тоже есть, но ведёт себя иначе. `ble_client_id`
+и `uart_id` независимо опциональны, но **хотя бы один из двух обязателен**; BLE/UART-машинерия
+каждого из них компилируется только когда реально используется, поэтому чисто-UART-инстанс не
+несёт вообще никаких накладных расходов на BLE/`esp32_ble_tracker` (меньше flash/RAM, чем у
+BLE-only или dual-transport вариантов), и наоборот:
 
 | Имя | Обязательность | Default | Логика |
 | --- | --- | --- | --- |
-| `ble_client_id` | **Да**, всегда | — | Инстанс `ble_client:` для общения со встроенным BLE-радио датчика. Аналога в нативном `ld2410:` нет. Чисто UART-инстанс не поддерживается (класс всегда наследует `ble_client::BLEClientNode`) — для этого случая используйте нативный компонент `ld2410`. |
-| `uart_id` | Нет | — | Шина `uart:`, к которой подключён датчик — то же поле, что и в нативном `ld2410:`, но там оно **обязательно, а здесь опционально**: не указывайте для чисто BLE-инстанса. |
+| `ble_client_id` | Хотя бы один из `ble_client_id`/`uart_id` | — | Инстанс `ble_client:` для общения со встроенным BLE-радио датчика. Аналога в нативном `ld2410:` нет. |
+| `uart_id` | Хотя бы один из `ble_client_id`/`uart_id` | — | Шина `uart:`, к которой подключён датчик — то же поле, что и в нативном `ld2410:`, но там оно **обязательно, здесь опционально**. |
 | `mac_suffix` | Нет | `"unknown"` | Последние 2 байта BLE MAC-адреса модуля (как показывает приложение HiLink). Если задано, `mac_address:` в `ble_client:` — лишь плейсхолдер: компонент сам найдёт реальное устройство по BLE-скану (по совпадению последних 2 байт адреса) и перенаправит на него `ble_client`. `"unknown"` отключает поиск. |
 | `password` | Нет | `"HiLink"` | Пароль BLE-доступа, который датчик ожидает перед приёмом команд. |
 | `disabled` | Нет | `false` | Runtime-флаг. `true` останавливает всю BLE/UART-активность (никаких connect/scan/read) и принудительно ставит `internal: true` на все сущности (скрывает их из Home Assistant) — сам инстанс и его сущности остаются объявленными, ничего не удаляется. |
@@ -89,8 +93,8 @@ ble_client:
 
 ld2410_ble:
   - id: my_ld2410
-    uart_id: my_ld2410_uart        # опционально
-    ble_client_id: my_ld2410_ble_client  # обязателен (см. таблицу в разделе Возможности выше)
+    uart_id: my_ld2410_uart        # хотя бы одно из uart_id/ble_client_id обязательно
+    ble_client_id: my_ld2410_ble_client  # (см. таблицу в разделе Возможности выше)
     password: "HiLink"             # пароль BLE-доступа, по умолчанию "HiLink"
 
 binary_sensor:
@@ -108,11 +112,15 @@ text_sensor:
       name: LD2410 Active Transport
 ```
 
-Смотрите [`ld2410-ble-component-template.yaml`](ld2410-ble-component-template.yaml) — переиспользуемый
-packages-шаблон только для BLE, и [`ld2410-uart-ble-template.yaml`](ld2410-uart-ble-template.yaml)
-— вариант с двумя транспортами. Оба принимают подстановки
-`place`/`mac_address`/`mac_suffix`/`password`/`disabled` (а dual-transport ещё и `tx`/`rx`)
-и открывают полный набор сущностей. [`ld2410-ble-component-test.yaml`](ld2410-ble-component-test.yaml) /
+Смотрите [`ld2410-ble-component-template.yaml`](ld2410-ble-component-template.yaml) —
+переиспользуемый packages-шаблон только для BLE,
+[`ld2410-uart-only-template.yaml`](ld2410-uart-only-template.yaml) — только для UART, и
+[`ld2410-uart-ble-template.yaml`](ld2410-uart-ble-template.yaml) — вариант с двумя
+транспортами. Все три принимают подстановки `place`/`password`/`disabled` (плюс
+`mac_address`/`mac_suffix` у обоих BLE-вариантов, `tx`/`rx` у обоих UART-вариантов) и
+открывают полный набор сущностей.
+[`ld2410-ble-component-test.yaml`](ld2410-ble-component-test.yaml) /
+[`ld2410-uart-only-test.yaml`](ld2410-uart-only-test.yaml) /
 [`ld2410-uart-ble-test.yaml`](ld2410-uart-ble-test.yaml) — запускаемые примеры конфигов
 устройств поверх этих шаблонов.
 

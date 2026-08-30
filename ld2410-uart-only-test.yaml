@@ -1,0 +1,81 @@
+substitutions:
+  devicename: "ld2410-uart-only-test"
+  place: "test"
+
+esphome:
+  name: ${devicename}
+  friendly_name: ${devicename}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  min_auth_mode: WPA2
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_pass
+      priority: 10
+    - ssid: !secret wifi_garage_ssid
+      password: !secret wifi_pass
+      priority: 9
+    - ssid: !secret example_wifi_ssid
+      password: !secret example_wifi_pass
+      priority: 8
+
+  ap:
+    password: !secret ap_pass
+
+  use_address: ${devicename}.local
+
+api:
+  encryption:
+    key: !secret hass_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_pass
+
+captive_portal:
+
+logger:
+  level: DEBUG
+
+button:
+  - platform: safe_mode
+    name: Safe Mode Boot
+    entity_category: diagnostic
+
+  - platform: restart
+    id: module_restart_btn
+    name: Restart
+
+packages:
+  test_emi: !include
+    file: ld2410-uart-only-template.yaml
+    vars:
+      place: 'test'
+      tx: GPIO17
+      rx: GPIO16
+
+sensor:
+  - platform: uptime
+    name: Uptime
+
+  - platform: wifi_signal
+    name: WiFi Signal
+    update_interval: 60s
+
+binary_sensor:
+  - platform: status
+    name: Status
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: IP
+    ssid:
+      name: SSID
+    mac_address:
+      name: MAC

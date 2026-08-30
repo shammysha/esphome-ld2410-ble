@@ -46,12 +46,16 @@ them at `ld2410_ble:` instead and add the BLE-specific connection fields below.
   instead of just requiring a manual reflash.
 
 `ld2410_ble:` also takes a few options with no equivalent in the native `ld2410:` schema —
-plus `uart_id`, which exists in native too but behaves differently here:
+plus `uart_id`, which exists in native too but behaves differently here. `ble_client_id` and
+`uart_id` are each independently optional, but **at least one of the two is required**; each
+one's own BLE/UART machinery is only compiled in when it's actually used, so a UART-only
+instance carries no BLE/`esp32_ble_tracker` cost at all (smaller flash/RAM than either the
+BLE-only or dual-transport configurations), and vice versa:
 
 | Option | Required | Default | Logic |
 | --- | --- | --- | --- |
-| `ble_client_id` | **Yes**, always | — | The `ble_client:` instance to talk to the sensor's onboard BLE radio over. No equivalent in native `ld2410:`. A pure UART-only instance isn't supported (the class always inherits `ble_client::BLEClientNode`) — use the native `ld2410` component for that case instead. |
-| `uart_id` | No | — | The `uart:` bus wired to the sensor — same field native `ld2410:` has, but **required there and optional here**: omit it for a BLE-only instance. |
+| `ble_client_id` | At least one of `ble_client_id`/`uart_id` | — | The `ble_client:` instance to talk to the sensor's onboard BLE radio over. No equivalent in native `ld2410:`. |
+| `uart_id` | At least one of `ble_client_id`/`uart_id` | — | The `uart:` bus wired to the sensor — same field native `ld2410:` has, but **required there, optional here**. |
 | `mac_suffix` | No | `"unknown"` | Last 2 bytes of the module's BLE MAC (as shown in the HiLink app). When set, `ble_client:`'s own `mac_address:` is just a placeholder — the component finds the real device by BLE scan (matching the low 2 bytes of the advertised address) and redirects the `ble_client` to it. `"unknown"` disables discovery. |
 | `password` | No | `"HiLink"` | The BLE password gate the sensor expects before accepting commands. |
 | `disabled` | No | `false` | Runtime flag. `true` stops all BLE/UART activity (no connect/scan/read) and forces every entity to `internal: true` (hidden from Home Assistant) — the instance and its entities stay declared, nothing is removed. |
@@ -86,8 +90,8 @@ ble_client:
 
 ld2410_ble:
   - id: my_ld2410
-    uart_id: my_ld2410_uart        # optional
-    ble_client_id: my_ld2410_ble_client  # required (see the Features table above)
+    uart_id: my_ld2410_uart        # at least one of uart_id/ble_client_id is required
+    ble_client_id: my_ld2410_ble_client  # (see the Features table above)
     password: "HiLink"             # BLE password gate, defaults to "HiLink"
 
 binary_sensor:
@@ -105,13 +109,16 @@ text_sensor:
       name: LD2410 Active Transport
 ```
 
-See [`ld2410-ble-component-template.yaml`](ld2410-ble-component-template.yaml) for a BLE-only reusable
-packages template, and [`ld2410-uart-ble-template.yaml`](ld2410-uart-ble-template.yaml)
-for the dual-transport variant — both take `place`/`mac_address`/`mac_suffix`/`password`/
-`disabled` substitutions (and `tx`/`rx` for the dual-transport one) and expose the full
-entity set.
-[`ld2410-ble-component-test.yaml`](ld2410-ble-component-test.yaml) / [`ld2410-uart-ble-test.yaml`](ld2410-uart-ble-test.yaml)
-are runnable example device configs built on top of them.
+See [`ld2410-ble-component-template.yaml`](ld2410-ble-component-template.yaml) for a BLE-only
+reusable packages template, [`ld2410-uart-only-template.yaml`](ld2410-uart-only-template.yaml)
+for the UART-only variant, and [`ld2410-uart-ble-template.yaml`](ld2410-uart-ble-template.yaml)
+for the dual-transport one — all take `place`/`password`/`disabled` substitutions (plus
+`mac_address`/`mac_suffix` for the two with BLE, `tx`/`rx` for the two with UART) and expose
+the full entity set.
+[`ld2410-ble-component-test.yaml`](ld2410-ble-component-test.yaml) /
+[`ld2410-uart-only-test.yaml`](ld2410-uart-only-test.yaml) /
+[`ld2410-uart-ble-test.yaml`](ld2410-uart-ble-test.yaml) are runnable example device configs
+built on top of them.
 
 ## Credits
 

@@ -74,41 +74,9 @@ external_components:
     components: [ld2410_ble]
 ```
 
-## Пример конфигурации (несколько датчиков, по одному на каждый вариант транспорта)
-
-`ld2410_ble:` — `MULTI_CONF`: на одном устройстве может сосуществовать сколько угодно
-инстансов, каждый независимо чисто-UART, чисто-BLE или dual-transport:
-
-```yaml
-ld2410_ble:
-  # Dual transport: в приоритете UART, BLE как резерв.
-  - id: bathroom_ld2410
-    uart_id: bathroom_uart
-    ble_client_id: bathroom_ble_client
-    password: "HiLink"
-  # Чисто UART: ble_client_id вообще не указан, никаких накладных расходов на BLE/esp32_ble_tracker в бинарнике.
-  - id: kitchen_ld2410
-    uart_id: kitchen_uart
-  # Чисто BLE: uart_id вообще не указан.
-  - id: hallway_ld2410
-    ble_client_id: hallway_ble_client
-```
-
-Полная, напрямую компилируемая версия (с блоками `uart:`/`ble_client:`, на которые ссылаются
-эти три инстанса, и их сущностями) — в
-[`examples/multiple-sensors.yaml`](examples/multiple-sensors.yaml).
-
-Смотрите [`ld2410-ble-component-template.yaml`](ld2410-ble-component-template.yaml) —
-переиспользуемый packages-шаблон только для BLE,
-[`ld2410-uart-only-template.yaml`](ld2410-uart-only-template.yaml) — только для UART, и
-[`ld2410-uart-ble-template.yaml`](ld2410-uart-ble-template.yaml) — вариант с двумя
-транспортами. Все три принимают подстановки `place`/`password`/`disabled` (плюс
-`mac_address`/`mac_suffix` у обоих BLE-вариантов, `tx`/`rx` у обоих UART-вариантов) и
-открывают полный набор сущностей.
-[`ld2410-ble-component-test.yaml`](ld2410-ble-component-test.yaml) /
-[`ld2410-uart-only-test.yaml`](ld2410-uart-only-test.yaml) /
-[`ld2410-uart-ble-test.yaml`](ld2410-uart-ble-test.yaml) — запускаемые примеры конфигов
-устройств поверх этих шаблонов.
+Переиспользуемые `packages:`-шаблоны для всех трёх вариантов транспорта (только BLE, только
+UART, dual-transport) — в [`templates/`](templates/); более полный конфиг с несколькими
+датчиками сразу — в [`examples/`](examples/).
 
 ## Благодарности
 

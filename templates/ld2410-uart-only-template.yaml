@@ -1,7 +1,5 @@
 substitutions:
   place: 'somewhere'
-  mac_address: '00:00:00:00:00:00'
-  mac_suffix: 'unknown'
   password: "HiLink"
   tx: 'unknown'
   rx: 'unknown'
@@ -10,19 +8,16 @@ substitutions:
 external_components:
   - source:
       type: local
-      path: components
+      path: ../components
     components: [ld2410_ble]
 
 # `disabled: true` is a *runtime* flag on ld2410_ble: itself, not a `!remove` of this block --
-# uart:/ble_client:/ld2410_ble: are deliberately always real, never-emptied domains. Emptying
-# them via !remove hits a genuine upstream ESPHome bug (ble_client's own headers reference
-# stale symbols that only resolve once its to_code() has run for a real instance -- see the
-# component's own __init__.py for the full story). When disabled, ld2410_ble itself skips all
-# BLE/UART activity at runtime (no connect/scan/read), and forces every entity below to
+# uart:/ld2410_ble: are deliberately always real, never-emptied domains (see
+# ld2410-uart-ble-template.yaml's comment for the full BLE-side reasoning; the same design
+# applies here even though this template has no ble_client: at all). When disabled, ld2410_ble
+# itself skips all UART activity at runtime (no read), and forces every entity below to
 # internal: true regardless of this file not setting it per-field -- see
 # force_internal_if_disabled() in components/ld2410_ble/__init__.py.
-esp32_ble_tracker:
-
 uart:
   - id: ${place}_uart
     tx_pin: ${tx}
@@ -31,21 +26,14 @@ uart:
     parity: NONE
     stop_bits: 1
 
-# If mac_suffix (below) is set, mac_address here is just a placeholder -- it gets
-# overwritten once a device matching the suffix is found by scanning. Only fill in a
-# real mac_address if you already know it and want to skip discovery.
-ble_client:
-  - mac_address: ${mac_address}
-    id: ${place}_ble_client
-
-# UART is preferred whenever it has produced a valid frame recently; BLE (kept connected in
-# the background) is used as a fallback if the wired link goes quiet. See active_transport
-# below for a diagnostic showing which one is currently in use.
+# No ble_client_id at all: a pure UART-only instance genuinely doesn't compile in any
+# BLE/esp32_ble_tracker machinery (smaller flash/RAM footprint than either the BLE-only or
+# dual-transport templates) -- see README's "ld2410_ble: also takes..." table for the full
+# ble_client_id/uart_id requirement, and the project's own commit history for how this
+# became possible (it used to require at least a ble_client_id, no longer does).
 ld2410_ble:
   - id: ${place}_emi
     uart_id: ${place}_uart
-    ble_client_id: ${place}_ble_client
-    mac_suffix: ${mac_suffix}
     password: ${password}
     disabled: ${disabled}
 
@@ -65,9 +53,6 @@ binary_sensor:
     out_pin_presence_status:
       id: ${place}_out_pin_presence_status
       name: ${place} Out Pin Presence Status
-    ble_status:
-      id: ${place}_ble_status
-      name: ${place} BLE Status
 
 text_sensor:
   - platform: ld2410_ble
@@ -79,9 +64,6 @@ text_sensor:
     mac_address:
       id: ${place}_mac
       name: ${place} Mac Address
-    active_transport:
-      id: ${place}_active_transport
-      name: ${place} Active Transport
 
 sensor:
   - platform: ld2410_ble
@@ -189,6 +171,9 @@ select:
     out_pin_level:
       id: ${place}_out_pin_level
       name: ${place} out pin level
+    baud_rate:
+      id: ${place}_baud_rate
+      name: ${place} baud rate
 
 number:
   - platform: ld2410_ble

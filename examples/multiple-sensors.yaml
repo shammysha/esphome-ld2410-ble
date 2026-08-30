@@ -1,8 +1,14 @@
 # Standalone, directly compilable example showing multiple LD2410 sensors on one device --
-# one dual-transport (UART preferred, BLE as failover), one UART-only, one BLE-only. ld2410_ble:
-# is MULTI_CONF, so any number of instances can coexist like this; each is fully independent
-# (its own transport shape, its own entities via ld2410_id:). See the README's own
-# "Configuration example" section for the walkthrough this file mirrors.
+# one dual-transport, one UART-only, one BLE-only -- deliberately spreading every ld2410_ble:
+# config option (uart_id, ble_client_id, mac_suffix, password, disabled) across the three so
+# each option appears somewhere real:
+#
+#   bathroom_ld2410  dual transport   uart_id + ble_client_id, custom password
+#   kitchen_ld2410   UART-only        uart_id, disabled: true (entities hidden, no activity)
+#   hallway_ld2410   BLE-only         ble_client_id + mac_suffix discovery
+#
+# ld2410_ble: is MULTI_CONF, so any number of instances can coexist like this; each is fully
+# independent (its own transport shape, its own entities via ld2410_id:).
 #
 # Fill in your own wifi/api/ota secrets (or a `secrets.yaml`) before flashing -- this is meant
 # to be copied and adapted, not flashed as-is.
@@ -55,27 +61,39 @@ uart:
 ble_client:
   - mac_address: AA:BB:CC:DD:EE:01
     id: bathroom_ble_client
-  - mac_address: AA:BB:CC:DD:EE:02
+  # mac_address here is just a placeholder -- mac_suffix below finds and redirects to the
+  # real device by scanning, so the exact address doesn't need to be known up front.
+  - mac_address: 00:00:00:00:00:00
     id: hallway_ble_client
 
 ld2410_ble:
-  # Dual transport: UART preferred, BLE as failover.
+  # Dual transport: UART preferred, BLE as failover. Custom password (the sensor's factory
+  # default is "HiLink"; must be exactly 6 characters).
   - id: bathroom_ld2410
     uart_id: bathroom_uart
     ble_client_id: bathroom_ble_client
-    password: "HiLink"
+    password: "MyPin1"
+
   # UART-only: no ble_client_id at all, no BLE/esp32_ble_tracker cost in the binary.
+  # disabled: true -- runtime flag, stops all UART activity and forces every entity below
+  # to internal: true (hidden from Home Assistant), without removing the instance itself.
   - id: kitchen_ld2410
     uart_id: kitchen_uart
-  # BLE-only: no uart_id at all.
+    disabled: true
+
+  # BLE-only: no uart_id at all. mac_suffix -- last 2 bytes of the module's BLE MAC (as
+  # shown in the HiLink app) -- finds the real device by scanning instead of a fixed address.
   - id: hallway_ld2410
     ble_client_id: hallway_ble_client
+    mac_suffix: "FF:63"
 
 binary_sensor:
   - platform: ld2410_ble
     ld2410_id: bathroom_ld2410
     has_moving_target:
       name: Bathroom Moving Target
+    has_still_target:
+      name: Bathroom Still Target
 
   - platform: ld2410_ble
     ld2410_id: kitchen_ld2410
@@ -86,9 +104,52 @@ binary_sensor:
     ld2410_id: hallway_ld2410
     has_moving_target:
       name: Hallway Moving Target
+    ble_status:
+      name: Hallway BLE Status
 
 text_sensor:
   - platform: ld2410_ble
     ld2410_id: bathroom_ld2410
     active_transport:
       name: Bathroom Active Transport
+    mac_address:
+      name: Bathroom MAC Address
+
+  - platform: ld2410_ble
+    ld2410_id: hallway_ld2410
+    mac_address:
+      name: Hallway MAC Address
+
+sensor:
+  - platform: ld2410_ble
+    ld2410_id: bathroom_ld2410
+    moving_distance:
+      name: Bathroom Moving Distance
+    still_distance:
+      name: Bathroom Still Distance
+
+switch:
+  - platform: ld2410_ble
+    ld2410_id: kitchen_ld2410
+    engineering_mode:
+      name: Kitchen Engineering Mode
+    bluetooth:
+      name: Kitchen Control Bluetooth
+
+number:
+  - platform: ld2410_ble
+    ld2410_id: hallway_ld2410
+    light_threshold:
+      name: Hallway Light Threshold
+
+select:
+  - platform: ld2410_ble
+    ld2410_id: kitchen_ld2410
+    baud_rate:
+      name: Kitchen Baud Rate
+
+button:
+  - platform: ld2410_ble
+    ld2410_id: bathroom_ld2410
+    query_params:
+      name: Bathroom Query Params

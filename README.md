@@ -71,40 +71,9 @@ external_components:
     components: [ld2410_ble]
 ```
 
-## Configuration example (multiple sensors, one per transport shape)
-
-`ld2410_ble:` is `MULTI_CONF` — any number of instances can coexist on the same device, each
-independently UART-only, BLE-only, or dual-transport:
-
-```yaml
-ld2410_ble:
-  # Dual transport: UART preferred, BLE as failover.
-  - id: bathroom_ld2410
-    uart_id: bathroom_uart
-    ble_client_id: bathroom_ble_client
-    password: "HiLink"
-  # UART-only: no ble_client_id at all, no BLE/esp32_ble_tracker cost in the binary.
-  - id: kitchen_ld2410
-    uart_id: kitchen_uart
-  # BLE-only: no uart_id at all.
-  - id: hallway_ld2410
-    ble_client_id: hallway_ble_client
-```
-
-See [`examples/multiple-sensors.yaml`](examples/multiple-sensors.yaml) for the full,
-directly-compilable version, including the `uart:`/`ble_client:` blocks these three instances
-refer to and their entities.
-
-See [`ld2410-ble-component-template.yaml`](ld2410-ble-component-template.yaml) for a BLE-only
-reusable packages template, [`ld2410-uart-only-template.yaml`](ld2410-uart-only-template.yaml)
-for the UART-only variant, and [`ld2410-uart-ble-template.yaml`](ld2410-uart-ble-template.yaml)
-for the dual-transport one — all take `place`/`password`/`disabled` substitutions (plus
-`mac_address`/`mac_suffix` for the two with BLE, `tx`/`rx` for the two with UART) and expose
-the full entity set.
-[`ld2410-ble-component-test.yaml`](ld2410-ble-component-test.yaml) /
-[`ld2410-uart-only-test.yaml`](ld2410-uart-only-test.yaml) /
-[`ld2410-uart-ble-test.yaml`](ld2410-uart-ble-test.yaml) are runnable example device configs
-built on top of them.
+Reusable `packages:` templates for all three transport shapes (BLE-only, UART-only,
+dual-transport) are in [`templates/`](templates/); a fuller multi-sensor reference config is in
+[`examples/`](examples/).
 
 ## Credits
 

@@ -67,8 +67,6 @@ external_components:
     components: [ld2410_ble]
 ```
 
-(`refresh: 1s` is worth adding while iterating on a fix — otherwise ESPHome only re-checks the remote once a day by default. A `type: local, path: components` source pointing at a checkout of this repo also works, e.g. for local development.)
-
 ## Configuration example (dual transport)
 
 ```yaml

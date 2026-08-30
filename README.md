@@ -71,43 +71,29 @@ external_components:
     components: [ld2410_ble]
 ```
 
-## Configuration example (dual transport)
+## Configuration example (multiple sensors, one per transport shape)
+
+`ld2410_ble:` is `MULTI_CONF` — any number of instances can coexist on the same device, each
+independently UART-only, BLE-only, or dual-transport:
 
 ```yaml
-esp32_ble_tracker:
-
-uart:
-  - id: my_ld2410_uart
-    tx_pin: GPIO17
-    rx_pin: GPIO16
-    baud_rate: 256000
-    parity: NONE
-    stop_bits: 1
-
-ble_client:
-  - mac_address: AA:BB:CC:DD:EE:FF
-    id: my_ld2410_ble_client
-
 ld2410_ble:
-  - id: my_ld2410
-    uart_id: my_ld2410_uart        # at least one of uart_id/ble_client_id is required
-    ble_client_id: my_ld2410_ble_client  # (see the Features table above)
-    password: "HiLink"             # BLE password gate, defaults to "HiLink"
-
-binary_sensor:
-  - platform: ld2410_ble
-    ld2410_id: my_ld2410
-    has_moving_target:
-      name: Moving Target
-    has_still_target:
-      name: Still Target
-
-text_sensor:
-  - platform: ld2410_ble
-    ld2410_id: my_ld2410
-    active_transport:
-      name: LD2410 Active Transport
+  # Dual transport: UART preferred, BLE as failover.
+  - id: bathroom_ld2410
+    uart_id: bathroom_uart
+    ble_client_id: bathroom_ble_client
+    password: "HiLink"
+  # UART-only: no ble_client_id at all, no BLE/esp32_ble_tracker cost in the binary.
+  - id: kitchen_ld2410
+    uart_id: kitchen_uart
+  # BLE-only: no uart_id at all.
+  - id: hallway_ld2410
+    ble_client_id: hallway_ble_client
 ```
+
+See [`examples/multiple-sensors.yaml`](examples/multiple-sensors.yaml) for the full,
+directly-compilable version (the `uart:`/`ble_client:` blocks these three instances refer to,
+plus their entities) — verified via a real compile on the ESPHome host.
 
 See [`ld2410-ble-component-template.yaml`](ld2410-ble-component-template.yaml) for a BLE-only
 reusable packages template, [`ld2410-uart-only-template.yaml`](ld2410-uart-only-template.yaml)

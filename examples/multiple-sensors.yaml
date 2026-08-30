@@ -1,0 +1,94 @@
+# Standalone, directly compilable example showing multiple LD2410 sensors on one device --
+# one dual-transport (UART preferred, BLE as failover), one UART-only, one BLE-only. ld2410_ble:
+# is MULTI_CONF, so any number of instances can coexist like this; each is fully independent
+# (its own transport shape, its own entities via ld2410_id:). See the README's own
+# "Configuration example" section for the walkthrough this file mirrors.
+#
+# Fill in your own wifi/api/ota secrets (or a `secrets.yaml`) before flashing -- this is meant
+# to be copied and adapted, not flashed as-is.
+
+esphome:
+  name: multi-ld2410-example
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/shammysha/esphome-ld2410-ble
+      ref: main
+    components: [ld2410_ble]
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+logger:
+
+esp32_ble_tracker:
+
+uart:
+  - id: bathroom_uart
+    tx_pin: GPIO17
+    rx_pin: GPIO16
+    baud_rate: 256000
+    parity: NONE
+    stop_bits: 1
+  - id: kitchen_uart
+    tx_pin: GPIO21
+    rx_pin: GPIO20
+    baud_rate: 256000
+    parity: NONE
+    stop_bits: 1
+
+ble_client:
+  - mac_address: AA:BB:CC:DD:EE:01
+    id: bathroom_ble_client
+  - mac_address: AA:BB:CC:DD:EE:02
+    id: hallway_ble_client
+
+ld2410_ble:
+  # Dual transport: UART preferred, BLE as failover.
+  - id: bathroom_ld2410
+    uart_id: bathroom_uart
+    ble_client_id: bathroom_ble_client
+    password: "HiLink"
+  # UART-only: no ble_client_id at all, no BLE/esp32_ble_tracker cost in the binary.
+  - id: kitchen_ld2410
+    uart_id: kitchen_uart
+  # BLE-only: no uart_id at all.
+  - id: hallway_ld2410
+    ble_client_id: hallway_ble_client
+
+binary_sensor:
+  - platform: ld2410_ble
+    ld2410_id: bathroom_ld2410
+    has_moving_target:
+      name: Bathroom Moving Target
+
+  - platform: ld2410_ble
+    ld2410_id: kitchen_ld2410
+    has_moving_target:
+      name: Kitchen Moving Target
+
+  - platform: ld2410_ble
+    ld2410_id: hallway_ld2410
+    has_moving_target:
+      name: Hallway Moving Target
+
+text_sensor:
+  - platform: ld2410_ble
+    ld2410_id: bathroom_ld2410
+    active_transport:
+      name: Bathroom Active Transport

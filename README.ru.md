@@ -74,43 +74,30 @@ external_components:
     components: [ld2410_ble]
 ```
 
-## Пример конфигурации (два транспорта)
+## Пример конфигурации (несколько датчиков, по одному на каждый вариант транспорта)
+
+`ld2410_ble:` — `MULTI_CONF`: на одном устройстве может сосуществовать сколько угодно
+инстансов, каждый независимо чисто-UART, чисто-BLE или dual-transport:
 
 ```yaml
-esp32_ble_tracker:
-
-uart:
-  - id: my_ld2410_uart
-    tx_pin: GPIO17
-    rx_pin: GPIO16
-    baud_rate: 256000
-    parity: NONE
-    stop_bits: 1
-
-ble_client:
-  - mac_address: AA:BB:CC:DD:EE:FF
-    id: my_ld2410_ble_client
-
 ld2410_ble:
-  - id: my_ld2410
-    uart_id: my_ld2410_uart        # хотя бы одно из uart_id/ble_client_id обязательно
-    ble_client_id: my_ld2410_ble_client  # (см. таблицу в разделе Возможности выше)
-    password: "HiLink"             # пароль BLE-доступа, по умолчанию "HiLink"
-
-binary_sensor:
-  - platform: ld2410_ble
-    ld2410_id: my_ld2410
-    has_moving_target:
-      name: Moving Target
-    has_still_target:
-      name: Still Target
-
-text_sensor:
-  - platform: ld2410_ble
-    ld2410_id: my_ld2410
-    active_transport:
-      name: LD2410 Active Transport
+  # Dual transport: в приоритете UART, BLE как резерв.
+  - id: bathroom_ld2410
+    uart_id: bathroom_uart
+    ble_client_id: bathroom_ble_client
+    password: "HiLink"
+  # Чисто UART: ble_client_id вообще не указан, никаких накладных расходов на BLE/esp32_ble_tracker в бинарнике.
+  - id: kitchen_ld2410
+    uart_id: kitchen_uart
+  # Чисто BLE: uart_id вообще не указан.
+  - id: hallway_ld2410
+    ble_client_id: hallway_ble_client
 ```
+
+Полная, напрямую компилируемая версия (с блоками `uart:`/`ble_client:`, на которые ссылаются
+эти три инстанса, и их сущностями) — в
+[`examples/multiple-sensors.yaml`](examples/multiple-sensors.yaml), проверена реальной
+компиляцией на the ESPHome host.
 
 Смотрите [`ld2410-ble-component-template.yaml`](ld2410-ble-component-template.yaml) —
 переиспользуемый packages-шаблон только для BLE,

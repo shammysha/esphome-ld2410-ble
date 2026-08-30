@@ -75,12 +75,21 @@ external_components:
 
 esp32_ble_tracker:
 
+uart:
+  - id: my_uart
+    tx_pin: GPIO17
+    rx_pin: GPIO16
+    baud_rate: 256000
+    parity: NONE
+    stop_bits: 1
+
 ble_client:
   - mac_address: AA:BB:CC:DD:EE:FF
     id: my_ble_client
 
 ld2410_ble:
   - id: my_ld2410
+    uart_id: my_uart          # оба подключены -- в приоритете UART, BLE подхватывает при обрыве
     ble_client_id: my_ble_client
 
 binary_sensor:

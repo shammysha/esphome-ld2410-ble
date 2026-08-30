@@ -53,10 +53,13 @@ them at `ld2410_ble:` instead and add the BLE-specific connection fields below.
 ```yaml
 external_components:
   - source:
-      type: local
-      path: components  # or a github source, see ESPHome docs on external_components
+      type: git
+      url: https://github.com/shammysha/esphome-ld2410-ble
+      ref: main
     components: [ld2410_ble]
 ```
+
+(`refresh: 1s` is worth adding while iterating on a fix — otherwise ESPHome only re-checks the remote once a day by default. A `type: local, path: components` source pointing at a checkout of this repo also works, e.g. for local development.)
 
 ## Configuration example (dual transport)
 

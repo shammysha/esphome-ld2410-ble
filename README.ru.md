@@ -56,10 +56,13 @@ BLE напрямую через `ble_client`, и опционально може
 ```yaml
 external_components:
   - source:
-      type: local
-      path: components  # либо источник на github — см. документацию ESPHome по external_components
+      type: git
+      url: https://github.com/shammysha/esphome-ld2410-ble
+      ref: main
     components: [ld2410_ble]
 ```
+
+(на время активной отладки фикса стоит добавить `refresh: 1s` — иначе ESPHome проверяет обновления с апстрима раз в сутки. Источник `type: local, path: components`, указывающий на локальный чекаут этого репозитория, тоже работает — например, для локальной разработки.)
 
 ## Пример конфигурации (два транспорта)
 

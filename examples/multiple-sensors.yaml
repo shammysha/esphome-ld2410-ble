@@ -142,6 +142,11 @@ number:
     light_threshold:
       name: Hallway Light Threshold
 
+  - platform: ld2410_ble
+    ld2410_id: bathroom_ld2410
+    throttle:
+      name: Bathroom Throttle
+
 select:
   - platform: ld2410_ble
     ld2410_id: kitchen_ld2410

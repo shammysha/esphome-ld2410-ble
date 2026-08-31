@@ -158,9 +158,10 @@ CONFIG_SCHEMA = cv.All(
             # Rate-limits how often a periodic data frame is actually processed (sensor
             # readings, binary_sensor states, the engineering_mode switch's own state) --
             # "Reduce data update rate to prevent home assistant database size grow fast" per
-            # handle_periodic_data_()'s own comment. Default 0 = no throttling, every frame
-            # processed. uint16_t on the C++ side, hence the 65535ms cap.
-            cv.Optional(CONF_THROTTLE, default="0ms"): cv.All(
+            # handle_periodic_data_()'s own comment. 1s matches the number platform's own
+            # default (see number/__init__.py) so both stay consistent. uint16_t on the C++
+            # side, hence the 65535ms cap.
+            cv.Optional(CONF_THROTTLE, default="1s"): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
             ),

@@ -4,6 +4,7 @@
 
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
+#include "number/throttle_number.h"
 #endif
 
 #ifdef USE_SENSOR
@@ -30,6 +31,15 @@ void LD2410BLEComponent::setup() {
   }
 #endif
 }
+
+#ifdef USE_NUMBER
+void LD2410BLEComponent::set_throttle_number(ThrottleNumber *number) {
+  this->throttle_number_ = number;
+  if (number != nullptr) {
+    number->publish_initial_state();
+  }
+}
+#endif
 
 #ifdef USE_LD2410_BLE_CLIENT
 void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {

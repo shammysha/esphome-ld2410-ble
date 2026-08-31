@@ -37,6 +37,10 @@
 namespace esphome {
 namespace ld2410_ble {
 
+#ifdef USE_NUMBER
+class ThrottleNumber;
+#endif
+
 #ifdef USE_LD2410_BLE_CLIENT
 namespace espbt = esphome::esp32_ble_tracker;
 #endif
@@ -248,6 +252,15 @@ class LD2410BLEComponent : public PollingComponent
 
   void set_light_out_control();
   void set_throttle(uint16_t value) { this->throttle_ = value; };
+  uint16_t get_throttle() const { return this->throttle_; }
+#ifdef USE_NUMBER
+  // Not a plain SUB_NUMBER: unlike the other numbers here, throttle has no sensor-side ACK to
+  // eventually publish its state from, so this immediately shows this->throttle_ (already set
+  // by set_throttle() above, from `throttle:` in YAML or its default -- to_code() always calls
+  // set_throttle() before this) as the new entity's initial state. Defined in the .cpp, which
+  // can safely see the full ThrottleNumber type; this header only forward-declares it.
+  void set_throttle_number(ThrottleNumber *number);
+#endif
   void set_bluetooth_password(const std::string &password);
   // force_ble: bypass transport preference (used for the BLE session bootstrap itself, in
   // gattc_event_handler, which must always configure the BLE link it just established).
@@ -432,6 +445,9 @@ class LD2410BLEComponent : public PollingComponent
   // set_throttle()/CONF_THROTTLE never actually being wired up in __init__.py either, so
   // there was no way to have configured a real value even if you'd tried.
   uint16_t throttle_{0};
+#ifdef USE_NUMBER
+  ThrottleNumber *throttle_number_{nullptr};
+#endif
 #ifdef USE_LD2410_BLE_CLIENT
   uint16_t handle;
   uint16_t char_handle;

@@ -3,6 +3,7 @@ from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_THROTTLE,
     CONF_TIMEOUT,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -19,6 +20,7 @@ from .. import CONF_LD2410_ID, LD2410BLEComponent, ld2410_ble_ns, force_internal
 GateThresholdNumber = ld2410_ble_ns.class_("GateThresholdNumber", number.Number)
 LightThresholdNumber = ld2410_ble_ns.class_("LightThresholdNumber", number.Number)
 MaxDistanceTimeoutNumber = ld2410_ble_ns.class_("MaxDistanceTimeoutNumber", number.Number)
+ThrottleNumber = ld2410_ble_ns.class_("ThrottleNumber", number.Number)
 
 CONF_MAX_MOVE_DISTANCE_GATE = "max_move_distance_gate"
 CONF_MAX_STILL_DISTANCE_GATE = "max_still_distance_gate"
@@ -54,6 +56,12 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_ILLUMINANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_LIGHTBULB,
+        ),
+        cv.Optional(CONF_THROTTLE): number.number_schema(
+            ThrottleNumber,
+            unit_of_measurement=UNIT_SECOND,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon=ICON_TIMELAPSE,
         ),
     }
 )
@@ -114,6 +122,13 @@ async def to_code(config):
         )
         await cg.register_parented(n, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_light_threshold_number(n))
+    if throttle_config := config.get(CONF_THROTTLE):
+        force_internal_if_disabled(throttle_config, ld2410_id)
+        n = await number.new_number(
+            throttle_config, min_value=0, max_value=60, step=1
+        )
+        await cg.register_parented(n, config[CONF_LD2410_ID])
+        cg.add(ld2410_component.set_throttle_number(n))
     for x in range(9):
         if gate_conf := config.get(f"g{x}"):
             move_config = gate_conf[CONF_MOVE_THRESHOLD]

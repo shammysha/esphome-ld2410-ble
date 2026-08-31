@@ -95,12 +95,17 @@ binary_sensor:
     ld2410_id: my_ld2410
     has_moving_target:
       name: Moving Target
+
+number:
+  - platform: ld2410_ble
+    ld2410_id: my_ld2410
+    throttle:
+      name: Throttle
 ```
 
 See [`examples/multiple-sensors.yaml`](examples/multiple-sensors.yaml) for a fuller reference
 covering every `ld2410_ble:` transport/connection option, across all three transport shapes
-(BLE-only, UART-only, dual-transport) — it doesn't show every entity field, just one of each
-platform.
+(BLE-only, UART-only, dual-transport).
 
 ## Credits
 

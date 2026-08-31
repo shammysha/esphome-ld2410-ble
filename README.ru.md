@@ -98,12 +98,17 @@ binary_sensor:
     ld2410_id: my_ld2410
     has_moving_target:
       name: Moving Target
+
+number:
+  - platform: ld2410_ble
+    ld2410_id: my_ld2410
+    throttle:
+      name: Throttle
 ```
 
 Более полный референс со всеми опциями подключения (`ld2410_ble:`), для всех трёх вариантов
 транспорта (только BLE, только UART, dual-transport) — в
-[`examples/multiple-sensors.yaml`](examples/multiple-sensors.yaml). Каждое поле каждой
-платформы сущностей там не показано — только по одному примеру на платформу.
+[`examples/multiple-sensors.yaml`](examples/multiple-sensors.yaml).
 
 ## Благодарности
 

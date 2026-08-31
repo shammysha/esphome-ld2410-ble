@@ -1,0 +1,1187 @@
+#include "ld2410_ble.h"
+#include "esphome/core/log.h"
+#include <utility>
+
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#include "number/throttle_number.h"
+#endif
+
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+
+#define highbyte(val) (uint8_t)((val) >> 8)
+#define lowbyte(val) (uint8_t)((val) &0xff)
+
+namespace esphome {
+namespace ld2410_ble{
+
+static const char *const TAG = "ld2410";
+
+void LD2410BLEComponent::setup() {
+#ifdef USE_LD2410_UART_ID
+  // BLE has its own trigger for this (gattc_event_handler's ESP_GATTC_SEARCH_CMPL_EVT, once a
+  // connection is actually established) -- UART has no equivalent "link is ready" event, the
+  // bus is just there once wired. Without this, a UART-only instance (or a dual-transport one
+  // before BLE happens to connect) never saw version/MAC/distance_resolution/light_control/gate
+  // numbers populate until something else (e.g. an edited number) triggered its own query.
+  if (this->uart_enabled_) {
+    this->set_timeout(200, [this]() { this->read_all_info(); });
+  }
+#endif
+}
+
+#ifdef USE_NUMBER
+void LD2410BLEComponent::set_throttle_number(ThrottleNumber *number) {
+  this->throttle_number_ = number;
+  if (number != nullptr) {
+    number->publish_initial_state();
+  }
+}
+#endif
+
+#ifdef USE_LD2410_BLE_CLIENT
+void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
+  // disabled_: update() never tells the parent ble_client to connect in the first place, so
+  // this shouldn't normally fire at all -- guarded anyway in case a connection was already
+  // in flight when disabled_ was set (e.g. right after boot, before the first update()).
+  if (this->disabled_) {
+    return;
+  }
+  // This fires on every GATT event, including ESP_GATTC_NOTIFY_EVT -- which is every single
+  // sensor reading (~10/s while connected). ESP_LOGV keeps it out of INFO/DEBUG logs, where
+  // it drowned out everything else; VERBOSE is still there for wire-level debugging.
+  ESP_LOGV(TAG, "GATTS Event received: %d", event);
+
+  switch (event) {
+
+    case ESP_GATTC_SEARCH_CMPL_EVT: {
+      auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_notify_uuid_);
+
+      if (chr == nullptr) {
+        ESP_LOGE(TAG, "[%s] No notify service found at device. Does it really LD2410?", this->parent()->address_str());
+        break;
+      }
+
+      this->handle = chr->handle;
+
+      auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(), this->parent()->get_remote_bda(), this->handle);
+      if (status) {
+        ESP_LOGE(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
+        break;
+      }
+
+      {
+        char uuid_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGI(TAG, "Found notify characteristic %s on device %s", this->char_notify_uuid_.to_str(uuid_buf),
+                this->parent()->address_str());
+      }
+
+      auto *cmd_chr = this->parent()->get_characteristic(this->service_uuid_, this->char_command_uuid_);
+      if (cmd_chr == nullptr) {
+        char cmd_uuid_buf[esp32_ble::UUID_STR_LEN];
+        char svc_uuid_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGI("TAG", "Characteristic %s was not found in service %s",
+                this->char_command_uuid_.to_str(cmd_uuid_buf), this->service_uuid_.to_str(svc_uuid_buf));
+        break;
+      }
+      this->char_handle = cmd_chr->handle;
+      this->char_props_ = cmd_chr->properties;
+
+      if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE) {
+        this->write_type_ = ESP_GATT_WRITE_TYPE_RSP;
+        ESP_LOGI(TAG, "Write type: ESP_GATT_WRITE_TYPE_RSP");
+
+      } else if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE_NR) {
+        this->write_type_ = ESP_GATT_WRITE_TYPE_NO_RSP;
+        ESP_LOGI(TAG, "Write type: ESP_GATT_WRITE_TYPE_NO_RSP");
+
+      } else {
+        char uuid_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGE(TAG, "Characteristic %s does not allow writing", this->char_command_uuid_.to_str(uuid_buf));
+        break;
+      }
+      this->node_state = espbt::ClientState::ESTABLISHED;
+      {
+        char uuid_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGD(TAG, "Found command characteristic %s on device %s", this->char_command_uuid_.to_str(uuid_buf),
+                this->parent()->address_str());
+      }
+
+      this->node_state = espbt::ClientState::ESTABLISHED;
+#ifdef USE_BINARY_SENSOR
+      if (this->ble_status_binary_sensor_ != nullptr) {
+        this->ble_status_binary_sensor_->publish_state(true);
+      }
+#endif
+
+      // Anything still queued from before this (re)connect is talking about a session that no
+      // longer exists -- drop it rather than replaying possibly-stale writes against a fresh
+      // GATT connection.
+      this->command_queue_.clear();
+      this->awaiting_ack_command_ = 0;
+
+      this->set_permissions();
+      this->set_engineering_mode(true, /*force_ble=*/true);
+      // Query version/MAC/distance resolution/light control/gate params once the link is
+      // actually usable, so entities like light_function/out_pin_level/distance_resolution
+      // aren't stuck at "unknown" until someone manually presses the Query Params button.
+      this->set_timeout(200, [this]() { this->read_all_info(); });
+
+      break;
+    }
+
+/*
+    case ESP_GATTC_OPEN_EVT: {
+      ESP_LOGW(TAG, "Connected!");
+      if (param->open.status == ESP_GATT_OK) {
+        ESP_LOGI(TAG, "Connected successfully!");
+        break;
+      }
+      break;
+    }
+*/
+    case ESP_GATTC_CLOSE_EVT: {
+      ESP_LOGW(TAG, "Disconnected!");
+
+#ifdef USE_BINARY_SENSOR
+      if (this->ble_status_binary_sensor_ != nullptr) {
+        this->ble_status_binary_sensor_->publish_state(false);
+      }
+#endif
+      break;
+    }
+
+    case ESP_GATTC_READ_CHAR_EVT: {
+      if (param->read.status != ESP_GATT_OK) {
+        ESP_LOGE(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
+        break;
+      }
+
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
+      this->current_frame_source_ = FrameSource::BLE;
+#endif
+      this->handle_ack_data_(param->read.value, param->read.value_len);
+
+      /*
+      if (param->read.handle == this->char_handle) {
+        this->handle_ack_data_(param->read.value, param->read.value_len);
+      }
+       */
+      break;
+    }
+
+    case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
+      if (param->reg_for_notify.handle == this->handle) {
+        if (param->reg_for_notify.status != ESP_GATT_OK) {
+          ESP_LOGW(TAG, "Error registering for notifications at handle %d, status=%d", param->reg_for_notify.handle, param->reg_for_notify.status);
+          break;
+        }
+        this->node_state = espbt::ClientState::ESTABLISHED;
+        char uuid_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGD(TAG, "Register for notify on %s complete", this->char_notify_uuid_.to_str(uuid_buf));
+      }
+      break;
+    }
+
+    case ESP_GATTC_NOTIFY_EVT: {
+      if (param->notify.handle == this->handle) {
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
+        this->current_frame_source_ = FrameSource::BLE;
+#endif
+        this->handle_periodic_data_(param->notify.value, param->notify.value_len);
+      }
+      break;
+    }
+
+    default:
+      return ;
+  }
+}
+
+bool LD2410BLEComponent::parse_device(const espbt::ESPBTDevice &device) {
+  // Skip the (tiny but nonzero, called for every scanned advertisement) MAC-suffix comparison
+  // entirely while disabled, and -- more importantly -- never auto-connect via a suffix match.
+  if (this->disabled_) {
+    return false;
+  }
+  if (!this->has_mac_suffix_ || this->ble_address_resolved_) {
+    return false;
+  }
+
+  const uint8_t *address = device.address();
+  if (address[4] != this->mac_suffix_[0] || address[5] != this->mac_suffix_[1]) {
+    return false;
+  }
+
+  char addr_buf[espbt::ESPBTDevice::MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  ESP_LOGI(TAG, "Found LD2410 by MAC suffix %02X:%02X -> %s", this->mac_suffix_[0], this->mac_suffix_[1],
+          device.address_str_to(addr_buf));
+  this->ble_address_resolved_ = true;
+
+  if (this->parent() == nullptr) {
+    ESP_LOGE(TAG, "mac_suffix matched but no ble_client is attached to redirect");
+    return true;
+  }
+
+  this->parent()->set_address(device.address_uint64());
+  this->parent()->set_enabled(true);
+  this->parent()->connect();
+  return true;
+}
+#endif  // USE_LD2410_BLE_CLIENT
+
+// PollingComponent::update() is pure virtual -- always defined regardless of transport, even
+// though its whole body is currently BLE-only (a periodic GATT poll; UART needs no equivalent,
+// it just keeps reading in loop()). Note update() is never actually scheduled today anyway
+// (no set_update_interval() call anywhere -- see PollingComponent's own SCHEDULER_DONT_RUN
+// default constructor), independent of this refactor.
+void LD2410BLEComponent::update() {
+#ifdef USE_LD2410_BLE_CLIENT
+  if (this->disabled_) {
+    // Explicitly tell the attached ble_client to stop trying on its own too -- ble_client's
+    // own auto_connect (default true) would otherwise keep attempting a connection on its
+    // own initiative, independent of anything this class does here. Called every update()
+    // cycle rather than once (e.g. from setup()): harmless/idempotent, and avoids depending
+    // on setup() ordering between this component and the ble_client it's attached to.
+    if (this->parent() != nullptr) {
+      this->parent()->set_enabled(false);
+    }
+    return;
+  }
+  if (this->parent() == nullptr) {
+    return;  // BLE not configured for this instance (UART-only)
+  }
+
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
+      ESP_LOGW(TAG, "Reconnecting to device");
+      this->parent()->set_enabled(true);
+      this->parent()->connect();
+  } else {
+    auto status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->handle,
+                                          ESP_GATT_AUTH_REQ_NONE);
+
+    if (status) {
+      this->status_set_warning();
+      ESP_LOGW(TAG, "Error sending read request for sensor, status=%d", status);
+    }
+  }
+#endif  // USE_LD2410_BLE_CLIENT
+}
+
+void LD2410BLEComponent::loop() {
+  if (this->disabled_) {
+    // Deliberately skip draining the UART RX buffer too -- any bytes that arrive while
+    // disabled are just dropped at the hardware FIFO level, which is fine: there's nothing
+    // for this instance to do with them while disabled anyway.
+    return;
+  }
+#ifdef USE_LD2410_UART_ID
+  if (this->uart_enabled_) {
+    while (this->available()) {
+      this->readline_(this->read(), this->uart_buffer_, sizeof(this->uart_buffer_));
+    }
+  }
+#endif
+  this->process_command_queue_();
+  this->update_transport_diagnostics_();
+}
+
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
+bool LD2410BLEComponent::should_use_uart_() {
+  if (!this->uart_enabled_) {
+    return false;  // UART not configured at all
+  }
+  if (this->uart_header_error_until_millis_ != 0 && millis() < this->uart_header_error_until_millis_) {
+    if (this->parent() != nullptr) {
+      return false;  // Recent UART framing error -> prefer BLE during the cooldown
+    }
+    // This instance's own ble_client_id isn't set (even though the device has BLE compiled in
+    // overall, via another instance) -- fall through to the normal health check below, UART is
+    // all there is regardless of the recent error.
+  }
+  if (this->uart_recently_healthy_()) {
+    return true;  // UART is alive -> prefer it
+  }
+  if (!this->ble_recently_healthy_()) {
+    return true;  // Neither transport looks alive -> still try the wired one
+  }
+  return false;  // UART is quiet but BLE is alive -> fail over
+}
+#endif  // USE_LD2410_BLE_CLIENT && USE_LD2410_UART_ID
+
+void LD2410BLEComponent::update_transport_diagnostics_() {
+#ifdef USE_TEXT_SENSOR
+  if (this->active_transport_text_sensor_ == nullptr) {
+    return;
+  }
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
+  bool uart_active = this->should_use_uart_();
+  if (this->transport_diag_published_ && uart_active == this->last_reported_uart_active_) {
+    return;
+  }
+  this->transport_diag_published_ = true;
+  this->last_reported_uart_active_ = uart_active;
+  this->active_transport_text_sensor_->publish_state(uart_active ? "uart" : "ble");
+#elif defined(USE_LD2410_UART_ID)
+  // Only one transport compiled in -- nothing to compare, always the same value; publish once.
+  if (this->transport_diag_published_) {
+    return;
+  }
+  this->transport_diag_published_ = true;
+  this->active_transport_text_sensor_->publish_state("uart");
+#else
+  if (this->transport_diag_published_) {
+    return;
+  }
+  this->transport_diag_published_ = true;
+  this->active_transport_text_sensor_->publish_state("ble");
+#endif
+#endif  // USE_TEXT_SENSOR
+}
+
+#ifdef USE_LD2410_UART_ID
+void LD2410BLEComponent::readline_(int readch, uint8_t *buffer, int len) {
+  if (readch < 0) {
+    return;  // No data available
+  }
+
+  if (this->uart_buffer_pos_ < len - 1) {
+    buffer[this->uart_buffer_pos_++] = readch;
+    buffer[this->uart_buffer_pos_] = 0;
+  } else {
+    ESP_LOGW(TAG, "Max command length exceeded; ignoring");
+    this->uart_buffer_pos_ = 0;
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
+    // Same treatment as an "incorrect Header" ACK-parse failure (see handle_ack_data_()) --
+    // running past MAX_LINE_LENGTH without ever hitting a recognized footer means the UART
+    // byte stream is desynced for this cycle (seen on native ld2410 too, not specific to this
+    // fork's buffer size), a real sign of transport trouble worth failing over from.
+    this->uart_header_error_until_millis_ = millis() + UART_HEADER_ERROR_COOLDOWN_MS;
+#endif
+    return;
+  }
+  if (this->uart_buffer_pos_ < 4) {
+    return;  // Not enough data to process yet
+  }
+
+  uint8_t *tail = &buffer[this->uart_buffer_pos_ - 4];
+  if (tail[0] == 0xF8 && tail[1] == 0xF7 && tail[2] == 0xF6 && tail[3] == 0xF5) {
+    ESP_LOGV(TAG, "Will handle Periodic Data (UART)");
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
+    this->current_frame_source_ = FrameSource::UART;
+#endif
+    this->handle_periodic_data_(buffer, this->uart_buffer_pos_);
+    this->uart_buffer_pos_ = 0;
+  } else if (tail[0] == 0x04 && tail[1] == 0x03 && tail[2] == 0x02 && tail[3] == 0x01) {
+    ESP_LOGV(TAG, "Will handle ACK Data (UART)");
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
+    this->current_frame_source_ = FrameSource::UART;
+#endif
+    if (this->handle_ack_data_(buffer, this->uart_buffer_pos_)) {
+      this->uart_buffer_pos_ = 0;
+    } else {
+      ESP_LOGV(TAG, "ACK Data incomplete");
+    }
+  }
+}
+#endif  // USE_LD2410_UART_ID
+
+void LD2410BLEComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "LD2410:");
+  ESP_LOGCONFIG(TAG, "  Disabled: %s", this->disabled_ ? "yes (no BLE/UART activity, entities hidden)" : "no");
+#ifdef USE_LD2410_UART_ID
+  ESP_LOGCONFIG(TAG, "  UART transport: %s", this->uart_enabled_ ? "enabled" : "not configured");
+#endif
+#ifdef USE_LD2410_BLE_CLIENT
+  ESP_LOGCONFIG(TAG, "  BLE transport: %s", this->parent() != nullptr ? "enabled" : "not configured");
+  if (this->has_mac_suffix_) {
+    ESP_LOGCONFIG(TAG, "  BLE MAC suffix: %02X:%02X (%s)", this->mac_suffix_[0], this->mac_suffix_[1],
+                  this->ble_address_resolved_ ? "resolved" : "scanning");
+  }
+#endif  // USE_LD2410_BLE_CLIENT
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR("  ", "TargetBinarySensor", this->target_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "MovingTargetBinarySensor", this->moving_target_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "StillTargetBinarySensor", this->still_target_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "OutPinPresenceStatusBinarySensor", this->out_pin_presence_status_binary_sensor_);
+#endif
+#ifdef USE_SWITCH
+  LOG_SWITCH("  ", "EngineeringModeSwitch", this->engineering_mode_switch_);
+  LOG_SWITCH("  ", "BluetoothSwitch", this->bluetooth_switch_);
+#endif
+#ifdef USE_BUTTON
+  LOG_BUTTON("  ", "ResetButton", this->reset_button_);
+  LOG_BUTTON("  ", "RestartButton", this->restart_button_);
+  LOG_BUTTON("  ", "QueryButton", this->query_button_);
+#endif
+#ifdef USE_SENSOR
+  LOG_SENSOR("  ", "LightSensor", this->light_sensor_);
+  LOG_SENSOR("  ", "MovingTargetDistanceSensor", this->moving_target_distance_sensor_);
+  LOG_SENSOR("  ", "StillTargetDistanceSensor", this->still_target_distance_sensor_);
+  LOG_SENSOR("  ", "MovingTargetEnergySensor", this->moving_target_energy_sensor_);
+  LOG_SENSOR("  ", "StillTargetEnergySensor", this->still_target_energy_sensor_);
+  LOG_SENSOR("  ", "DetectionDistanceSensor", this->detection_distance_sensor_);
+  for (sensor::Sensor *s : this->gate_still_sensors_) {
+    LOG_SENSOR("  ", "NthGateStillSesnsor", s);
+  }
+  for (sensor::Sensor *s : this->gate_move_sensors_) {
+    LOG_SENSOR("  ", "NthGateMoveSesnsor", s);
+  }
+#endif
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "VersionTextSensor", this->version_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "MacTextSensor", this->mac_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "ActiveTransportTextSensor", this->active_transport_text_sensor_);
+#endif
+#ifdef USE_SELECT
+  LOG_SELECT("  ", "LightFunctionSelect", this->light_function_select_);
+  LOG_SELECT("  ", "OutPinLevelSelect", this->out_pin_level_select_);
+  LOG_SELECT("  ", "DistanceResolutionSelect", this->distance_resolution_select_);
+#endif
+#ifdef USE_NUMBER
+  LOG_NUMBER("  ", "LightThresholdNumber", this->light_threshold_number_);
+  LOG_NUMBER("  ", "MaxStillDistanceGateNumber", this->max_still_distance_gate_number_);
+  LOG_NUMBER("  ", "MaxMoveDistanceGateNumber", this->max_move_distance_gate_number_);
+  LOG_NUMBER("  ", "TimeoutNumber", this->timeout_number_);
+  for (number::Number *n : this->gate_still_threshold_numbers_) {
+    LOG_NUMBER("  ", "Still Thresholds Number", n);
+  }
+  for (number::Number *n : this->gate_move_threshold_numbers_) {
+    LOG_NUMBER("  ", "Move Thresholds Number", n);
+  }
+#endif
+}
+
+void LD2410BLEComponent::read_all_info() {
+  this->set_config_mode_(true);
+  this->get_version_();
+  this->get_mac_();
+  this->get_distance_resolution_();
+  this->get_light_control_();
+  this->query_parameters_();
+  this->set_config_mode_(false);
+}
+
+void LD2410BLEComponent::restart_and_read_all_info() {
+  this->set_config_mode_(true);
+  this->restart_();
+  this->set_timeout(1000, [this]() { this->read_all_info(); });
+}
+
+#ifdef USE_LD2410_BLE_CLIENT
+bool LD2410BLEComponent::write_ble_(const std::vector<uint8_t> &data) {
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
+    ESP_LOGE(TAG, "Cannot write to BLE characteristic - not connected");
+    return false;
+  }
+
+  ESP_LOGV(TAG, "Will write %d bytes: %s", data.size(), format_hex_pretty(data).c_str());
+
+  esp_err_t err = esp_ble_gattc_write_char(
+      this->parent()->get_gattc_if(),
+      this->parent()->get_conn_id(),
+      this->char_handle,
+      data.size(),
+      const_cast<uint8_t *>(data.data()),
+      this->write_type_,
+      ESP_GATT_AUTH_REQ_NONE
+  );
+
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Error writing to characteristic: %s!", esp_err_to_name(err));
+    return false;
+  }
+
+  return true;
+}
+#endif  // USE_LD2410_BLE_CLIENT
+
+bool LD2410BLEComponent::send_command_(uint8_t command, const uint8_t *command_value, int command_value_len,
+                                       bool force_ble) {
+  if (this->command_queue_.size() >= COMMAND_QUEUE_MAX) {
+    ESP_LOGW(TAG, "Command queue full (%zu); dropping command %02X", this->command_queue_.size(), command);
+    return false;
+  }
+
+  int len = 2;
+  if (command_value != nullptr)
+    len += command_value_len;
+
+  std::vector<uint8_t> data(&CMD_FRAME_HEADER[0], &CMD_FRAME_HEADER[sizeof(CMD_FRAME_HEADER)]);
+  std::vector<uint8_t> postamble(&CMD_FRAME_END[0], &CMD_FRAME_END[sizeof(CMD_FRAME_END)]);
+
+  data.push_back(lowbyte(len));
+  data.push_back(highbyte(len));
+  data.push_back(lowbyte(command));
+  data.push_back(highbyte(command));
+
+  if (command_value != nullptr) {
+    for (int i = 0; i < command_value_len; i++) {
+      data.push_back(command_value[i]);
+    }
+  }
+  data.insert(data.end(), postamble.begin(), postamble.end());
+
+  ESP_LOGV(TAG, "Queueing COMMAND %02X (queue depth now %zu)", command, this->command_queue_.size() + 1);
+  uint32_t seq = (command == lowbyte(CMD_QUERY)) ? this->write_seq_ : 0;
+  this->command_queue_.push_back(QueuedCommand{std::move(data), command, force_ble, seq});
+  return true;
+}
+
+void LD2410BLEComponent::process_command_queue_() {
+  if (this->awaiting_ack_command_ != 0) {
+    if (millis() - this->awaiting_ack_since_millis_ < ACK_WAIT_TIMEOUT_MS) {
+      return;  // still waiting for the sensor to ACK the in-flight command
+    }
+    ESP_LOGW(TAG, "Timed out waiting for ACK of command %02X", this->awaiting_ack_command_);
+    this->awaiting_ack_command_ = 0;
+  }
+
+  if (this->command_queue_.empty())
+    return;
+
+  QueuedCommand cmd = std::move(this->command_queue_.front());
+  this->command_queue_.pop_front();
+
+  bool sent;
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
+  // Both transports compiled in -- genuinely choose per should_use_uart_()/force_ble.
+  if (!cmd.force_ble && this->should_use_uart_()) {
+    ESP_LOGV(TAG, "Will write %d bytes over UART: %s", cmd.frame.size(), format_hex_pretty(cmd.frame).c_str());
+    this->write_array(cmd.frame.data(), cmd.frame.size());
+    sent = true;
+  } else {
+    sent = this->write_ble_(cmd.frame);
+  }
+#elif defined(USE_LD2410_UART_ID)
+  // No BLE compiled in at all -- nothing to choose between, always UART.
+  ESP_LOGV(TAG, "Will write %d bytes over UART: %s", cmd.frame.size(), format_hex_pretty(cmd.frame).c_str());
+  this->write_array(cmd.frame.data(), cmd.frame.size());
+  sent = true;
+#else
+  // No UART compiled in at all -- nothing to choose between, always BLE.
+  sent = this->write_ble_(cmd.frame);
+#endif
+
+  if (!sent) {
+    // Transport wasn't actually available at send time (e.g. BLE not connected yet) -- drop it
+    // rather than retrying indefinitely; the next explicit query (or the reconnect path, which
+    // re-queues read_all_info()) will pick up the real state once a transport is usable again.
+    return;
+  }
+
+  this->awaiting_ack_command_ = cmd.command;
+  this->awaiting_ack_since_millis_ = millis();
+  if (cmd.command == lowbyte(CMD_QUERY)) {
+    this->in_flight_query_seq_ = cmd.seq_at_dispatch;
+  }
+}
+
+void LD2410BLEComponent::handle_periodic_data_(uint8_t *buffer, int len) {
+  if (len < 12)
+    return;  // 4 frame start bytes + 2 length bytes + 1 data end byte + 1 crc byte + 4 frame end bytes
+  if (buffer[0] != 0xF4 || buffer[1] != 0xF3 || buffer[2] != 0xF2 || buffer[3] != 0xF1)  // check 4 frame start bytes
+    return;
+  if (buffer[7] != HEAD || buffer[len - 6] != END || buffer[len - 5] != CHECK)  // Check constant values
+    return;  // data head=0xAA, data end=0x55, crc=0x00
+
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
+  if (this->current_frame_source_ == FrameSource::UART) {
+    this->last_uart_frame_millis_ = millis();
+  } else {
+    this->last_ble_frame_millis_ = millis();
+  }
+#elif defined(USE_LD2410_UART_ID)
+  this->last_uart_frame_millis_ = millis();
+#elif defined(USE_LD2410_BLE_CLIENT)
+  this->last_ble_frame_millis_ = millis();
+#endif
+
+  /*
+    Reduce data update rate to prevent home assistant database size grow fast
+  */
+  int32_t current_millis = millis();
+  if (current_millis - last_periodic_millis_ < this->throttle_)
+    return;
+  last_periodic_millis_ = current_millis;
+
+  /*
+    Data Type: 7th
+    0x01: Engineering mode
+    0x02: Normal mode
+  */
+  bool engineering_mode = buffer[DATA_TYPES] == 0x01;
+#ifdef USE_SWITCH
+  if (this->engineering_mode_switch_ != nullptr &&
+      current_millis - last_engineering_mode_change_millis_ > this->throttle_) {
+    this->engineering_mode_switch_->publish_state(engineering_mode);
+  }
+#endif
+#ifdef USE_BINARY_SENSOR
+  /*
+    Target states: 9th
+    0x00 = No target
+    0x01 = Moving targets
+    0x02 = Still targets
+    0x03 = Moving+Still targets
+  */
+  char target_state = buffer[TARGET_STATES];
+  if (this->target_binary_sensor_ != nullptr) {
+    this->target_binary_sensor_->publish_state(target_state != 0x00);
+  }
+  if (this->moving_target_binary_sensor_ != nullptr) {
+    this->moving_target_binary_sensor_->publish_state(CHECK_BIT(target_state, 0));
+  }
+  if (this->still_target_binary_sensor_ != nullptr) {
+    this->still_target_binary_sensor_->publish_state(CHECK_BIT(target_state, 1));
+  }
+#endif
+  /*
+    Moving target distance: 10~11th bytes
+    Moving target energy: 12th byte
+    Still target distance: 13~14th bytes
+    Still target energy: 15th byte
+    Detect distance: 16~17th bytes
+  */
+#ifdef USE_SENSOR
+  if (this->moving_target_distance_sensor_ != nullptr) {
+    int new_moving_target_distance = this->two_byte_to_int_(buffer[MOVING_TARGET_LOW], buffer[MOVING_TARGET_HIGH]);
+    if (this->moving_target_distance_sensor_->get_state() != new_moving_target_distance)
+      this->moving_target_distance_sensor_->publish_state(new_moving_target_distance);
+  }
+  if (this->moving_target_energy_sensor_ != nullptr) {
+    int new_moving_target_energy = buffer[MOVING_ENERGY];
+    if (this->moving_target_energy_sensor_->get_state() != new_moving_target_energy)
+      this->moving_target_energy_sensor_->publish_state(new_moving_target_energy);
+  }
+  if (this->still_target_distance_sensor_ != nullptr) {
+    int new_still_target_distance = this->two_byte_to_int_(buffer[STILL_TARGET_LOW], buffer[STILL_TARGET_HIGH]);
+    if (this->still_target_distance_sensor_->get_state() != new_still_target_distance)
+      this->still_target_distance_sensor_->publish_state(new_still_target_distance);
+  }
+  if (this->still_target_energy_sensor_ != nullptr) {
+    int new_still_target_energy = buffer[STILL_ENERGY];
+    if (this->still_target_energy_sensor_->get_state() != new_still_target_energy)
+      this->still_target_energy_sensor_->publish_state(new_still_target_energy);
+  }
+  if (this->detection_distance_sensor_ != nullptr) {
+    int new_detect_distance = this->two_byte_to_int_(buffer[DETECT_DISTANCE_LOW], buffer[DETECT_DISTANCE_HIGH]);
+    if (this->detection_distance_sensor_->get_state() != new_detect_distance)
+      this->detection_distance_sensor_->publish_state(new_detect_distance);
+  }
+  if (engineering_mode) {
+    /*
+      Moving distance range: 18th byte
+      Still distance range: 19th byte
+      Moving enery: 20~28th bytes
+    */
+    for (std::vector<sensor::Sensor *>::size_type i = 0; i != this->gate_move_sensors_.size(); i++) {
+      sensor::Sensor *s = this->gate_move_sensors_[i];
+      if (s != nullptr) {
+        float new_value = buffer[MOVING_SENSOR_START + i];
+        if (s->get_state() != new_value)
+          s->publish_state(new_value);
+      }
+    }
+    /*
+      Still energy: 29~37th bytes
+    */
+    for (std::vector<sensor::Sensor *>::size_type i = 0; i != this->gate_still_sensors_.size(); i++) {
+      sensor::Sensor *s = this->gate_still_sensors_[i];
+      if (s != nullptr) {
+        float new_value = buffer[STILL_SENSOR_START + i];
+        if (s->get_state() != new_value)
+          s->publish_state(new_value);
+      }
+    }
+    /*
+      Light sensor: 38th bytes
+    */
+    if (this->light_sensor_ != nullptr) {
+      int new_light_sensor = buffer[LIGHT_SENSOR];
+      if (this->light_sensor_->get_state() != new_light_sensor)
+        this->light_sensor_->publish_state(new_light_sensor);
+    }
+  } else {
+    for (auto *s : this->gate_move_sensors_) {
+      if (s != nullptr && !std::isnan(s->get_state())) {
+        s->publish_state(NAN);
+      }
+    }
+    for (auto *s : this->gate_still_sensors_) {
+      if (s != nullptr && !std::isnan(s->get_state())) {
+        s->publish_state(NAN);
+      }
+    }
+    if (this->light_sensor_ != nullptr && !std::isnan(this->light_sensor_->get_state())) {
+      this->light_sensor_->publish_state(NAN);
+    }
+  }
+#endif
+#ifdef USE_BINARY_SENSOR
+  if (engineering_mode) {
+    if (this->out_pin_presence_status_binary_sensor_ != nullptr) {
+      this->out_pin_presence_status_binary_sensor_->publish_state(buffer[OUT_PIN_SENSOR] == 0x01);
+    }
+  } else {
+    if (this->out_pin_presence_status_binary_sensor_ != nullptr) {
+      this->out_pin_presence_status_binary_sensor_->publish_state(false);
+    }
+  }
+#endif
+}
+
+const char VERSION_FMT[] = "%u.%02X.%02X%02X%02X%02X";
+
+std::string format_version(uint8_t *buffer) {
+  std::string::size_type version_size = 256;
+  std::string version;
+  do {
+    version.resize(version_size + 1);
+    version_size = std::snprintf(&version[0], version.size(), VERSION_FMT, buffer[13], buffer[12], buffer[17],
+                                 buffer[16], buffer[15], buffer[14]);
+  } while (version_size + 1 > version.size());
+  version.resize(version_size);
+  return version;
+}
+
+const char MAC_FMT[] = "%02X:%02X:%02X:%02X:%02X:%02X";
+
+const std::string UNKNOWN_MAC("unknown");
+const std::string NO_MAC("08:05:04:03:02:01");
+
+std::string format_mac(uint8_t *buffer) {
+  std::string::size_type mac_size = 256;
+  std::string mac;
+  do {
+    mac.resize(mac_size + 1);
+    mac_size = std::snprintf(&mac[0], mac.size(), MAC_FMT, buffer[10], buffer[11], buffer[12], buffer[13], buffer[14],
+                             buffer[15]);
+  } while (mac_size + 1 > mac.size());
+  mac.resize(mac_size);
+  if (mac == NO_MAC) {
+    return UNKNOWN_MAC;
+  }
+  return mac;
+}
+
+#ifdef USE_NUMBER
+std::function<void(void)> set_number_value(number::Number *n, float value) {
+  float normalized_value = value * 1.0;
+  if (n != nullptr && (!n->has_state() || n->state != normalized_value)) {
+    n->state = normalized_value;
+    return [n, normalized_value]() { n->publish_state(normalized_value); };
+  }
+  return []() {};
+}
+#endif
+
+bool LD2410BLEComponent::handle_ack_data_(uint8_t *buffer, int len) {
+  ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", buffer[COMMAND]);
+  if (len < 10) {
+    ESP_LOGE(TAG, "Error with last command : incorrect length");
+    return true;
+  }
+  if (buffer[0] != 0xFD || buffer[1] != 0xFC || buffer[2] != 0xFB || buffer[3] != 0xFA) {  // check 4 frame start bytes
+    ESP_LOGE(TAG, "Error with last command : incorrect Header");
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
+    if (this->current_frame_source_ == FrameSource::UART) {
+      // Force should_use_uart_() to prefer BLE for a fresh UART_HEADER_ERROR_COOLDOWN_MS --
+      // each further error while the cooldown is already running pushes the deadline out
+      // further, so a clean run with no errors is what actually lets UART be trusted again.
+      this->uart_header_error_until_millis_ = millis() + UART_HEADER_ERROR_COOLDOWN_MS;
+    }
+#endif
+    return true;
+  }
+  if (buffer[COMMAND_STATUS] != 0x01) {
+    ESP_LOGE(TAG, "Error with last command : status != 0x01");
+    return true;
+  }
+  if (this->two_byte_to_int_(buffer[8], buffer[9]) != 0x00) {
+    ESP_LOGE(TAG, "Error with last command , last buffer was: %u , %u", buffer[8], buffer[9]);
+    return true;
+  }
+
+#if defined(USE_LD2410_BLE_CLIENT) && defined(USE_LD2410_UART_ID)
+  if (this->current_frame_source_ == FrameSource::UART) {
+    this->last_uart_frame_millis_ = millis();
+  } else {
+    this->last_ble_frame_millis_ = millis();
+  }
+#elif defined(USE_LD2410_UART_ID)
+  this->last_uart_frame_millis_ = millis();
+#elif defined(USE_LD2410_BLE_CLIENT)
+  this->last_ble_frame_millis_ = millis();
+#endif
+
+  if (buffer[COMMAND] == this->awaiting_ack_command_) {
+    // Frees the queue slot so process_command_queue_() sends the next pending command --
+    // matches by command byte, same as the old lambda template's `ack_wait` global.
+    this->awaiting_ack_command_ = 0;
+  }
+
+  switch (buffer[COMMAND]) {
+    case lowbyte(CMD_ENABLE_CONF):
+      ESP_LOGV(TAG, "Handled Enable conf command");
+      break;
+    case lowbyte(CMD_DISABLE_CONF):
+      ESP_LOGV(TAG, "Handled Disabled conf command");
+      break;
+    case lowbyte(CMD_SET_BAUD_RATE):
+      // The actual reboot + (if uart_enabled_) local UART reload are already scheduled from
+      // set_baud_rate() itself via set_timeout(), independent of when this ACK arrives --
+      // same convention as set_distance_resolution()/set_light_out_control() elsewhere in
+      // this file. Nothing further to do here.
+      ESP_LOGV(TAG, "Handled set baud rate command");
+      break;
+    case lowbyte(CMD_VERSION):
+      this->version_ = format_version(buffer);
+      ESP_LOGV(TAG, "FW Version is: %s", const_cast<char *>(this->version_.c_str()));
+#ifdef USE_TEXT_SENSOR
+      if (this->version_text_sensor_ != nullptr) {
+        this->version_text_sensor_->publish_state(this->version_);
+      }
+#endif
+      break;
+    case lowbyte(CMD_QUERY_DISTANCE_RESOLUTION): {
+      std::string distance_resolution =
+          DISTANCE_RESOLUTION_INT_TO_ENUM.at(this->two_byte_to_int_(buffer[10], buffer[11]));
+      ESP_LOGV(TAG, "Distance resolution is: %s", const_cast<char *>(distance_resolution.c_str()));
+#ifdef USE_SELECT
+      if (this->distance_resolution_select_ != nullptr &&
+          this->distance_resolution_select_->current_option() != distance_resolution) {
+        this->distance_resolution_select_->publish_state(distance_resolution);
+      }
+#endif
+    } break;
+    case lowbyte(CMD_QUERY_LIGHT_CONTROL): {
+      this->light_function_ = LIGHT_FUNCTION_INT_TO_ENUM.at(buffer[10]);
+      this->light_threshold_ = buffer[11] * 1.0;
+      this->out_pin_level_ = OUT_PIN_LEVEL_INT_TO_ENUM.at(buffer[12]);
+      ESP_LOGV(TAG, "Light function is: %s", const_cast<char *>(this->light_function_.c_str()));
+      ESP_LOGV(TAG, "Light threshold is: %f", this->light_threshold_);
+      ESP_LOGV(TAG, "Out pin level is: %s", const_cast<char *>(this->out_pin_level_.c_str()));
+#ifdef USE_SELECT
+      if (this->light_function_select_ != nullptr &&
+          this->light_function_select_->current_option() != this->light_function_) {
+        this->light_function_select_->publish_state(this->light_function_);
+      }
+      if (this->out_pin_level_select_ != nullptr &&
+          this->out_pin_level_select_->current_option() != this->out_pin_level_) {
+        this->out_pin_level_select_->publish_state(this->out_pin_level_);
+      }
+#endif
+#ifdef USE_NUMBER
+      if (this->light_threshold_number_ != nullptr &&
+          (!this->light_threshold_number_->has_state() ||
+           this->light_threshold_number_->state != this->light_threshold_)) {
+        this->light_threshold_number_->publish_state(this->light_threshold_);
+      }
+#endif
+    } break;
+    case lowbyte(CMD_MAC):
+      if (len < 20) {
+        return false;
+      }
+      this->mac_ = format_mac(buffer);
+      ESP_LOGV(TAG, "MAC Address is: %s", const_cast<char *>(this->mac_.c_str()));
+#ifdef USE_TEXT_SENSOR
+      if (this->mac_text_sensor_ != nullptr) {
+        this->mac_text_sensor_->publish_state(this->mac_);
+      }
+#endif
+#ifdef USE_SWITCH
+      if (this->bluetooth_switch_ != nullptr) {
+        this->bluetooth_switch_->publish_state(this->mac_ != UNKNOWN_MAC);
+      }
+#endif
+      break;
+    case lowbyte(CMD_GATE_SENS):
+      ESP_LOGV(TAG, "Handled sensitivity command");
+      break;
+    case lowbyte(CMD_BLUETOOTH):
+      ESP_LOGV(TAG, "Handled bluetooth command");
+      break;
+    case lowbyte(CMD_SET_DISTANCE_RESOLUTION):
+      ESP_LOGV(TAG, "Handled set distance resolution command");
+      break;
+    case lowbyte(CMD_SET_LIGHT_CONTROL):
+      ESP_LOGV(TAG, "Handled set light control command");
+      break;
+    case lowbyte(CMD_BT_PASSWORD):
+      ESP_LOGV(TAG, "Handled set bluetooth password command");
+      break;
+    case lowbyte(CMD_QUERY):  // Query parameters response
+    {
+      if (buffer[10] != 0xAA)
+        return true;  // value head=0xAA
+#ifdef USE_NUMBER
+      // Only correct a field if no local edit has superseded this query since it was
+      // dispatched (see in_flight_query_seq_/write_seq_ in ld2410_ble.h) -- otherwise this
+      // response is stale relative to that newer edit, and would wrongly stomp it back to the
+      // pre-edit value. That newer edit's own query (already queued behind this one) will
+      // confirm it instead.
+      std::vector<std::function<void(void)>> updates;
+      if (this->max_move_distance_seq_ <= this->in_flight_query_seq_)
+        updates.push_back(set_number_value(this->max_move_distance_gate_number_, buffer[12]));
+      if (this->max_still_distance_seq_ <= this->in_flight_query_seq_)
+        updates.push_back(set_number_value(this->max_still_distance_gate_number_, buffer[13]));
+      /*
+        Moving Sensitivities: 15~23th bytes
+      */
+      for (std::vector<number::Number *>::size_type i = 0; i != this->gate_move_threshold_numbers_.size(); i++) {
+        if (this->gate_move_threshold_seq_[i] <= this->in_flight_query_seq_)
+          updates.push_back(set_number_value(this->gate_move_threshold_numbers_[i], buffer[14 + i]));
+      }
+      /*
+        Still Sensitivities: 24~32th bytes
+      */
+      for (std::vector<number::Number *>::size_type i = 0; i != this->gate_still_threshold_numbers_.size(); i++) {
+        if (this->gate_still_threshold_seq_[i] <= this->in_flight_query_seq_)
+          updates.push_back(set_number_value(this->gate_still_threshold_numbers_[i], buffer[23 + i]));
+      }
+      /*
+        None Duration: 33~34th bytes
+      */
+      if (this->timeout_seq_ <= this->in_flight_query_seq_)
+        updates.push_back(
+            set_number_value(this->timeout_number_, this->two_byte_to_int_(buffer[32], buffer[33])));
+      for (auto &update : updates) {
+        update();
+      }
+#endif
+    } break;
+    default:
+      break;
+  }
+
+  return true;
+}
+
+void LD2410BLEComponent::set_config_mode_(bool enable, bool force_ble) {
+  uint8_t cmd = enable ? CMD_ENABLE_CONF : CMD_DISABLE_CONF;
+  uint8_t cmd_value[2] = {0x01, 0x00};
+  this->send_command_(cmd, enable ? cmd_value : nullptr, 2, force_ble);
+}
+
+void LD2410BLEComponent::set_bluetooth(bool enable) {
+  this->set_config_mode_(true);
+  uint8_t enable_cmd_value[2] = {0x01, 0x00};
+  uint8_t disable_cmd_value[2] = {0x00, 0x00};
+  this->send_command_(CMD_BLUETOOTH, enable ? enable_cmd_value : disable_cmd_value, 2);
+  this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
+}
+
+void LD2410BLEComponent::set_distance_resolution(const std::string &state) {
+  this->set_config_mode_(true);
+  uint8_t cmd_value[2] = {DISTANCE_RESOLUTION_ENUM_TO_INT.at(state), 0x00};
+  this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, 2);
+  this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
+}
+
+void LD2410BLEComponent::set_baud_rate(const std::string &state) {
+  this->set_config_mode_(true);
+  uint8_t cmd_value[2] = {BAUD_RATE_ENUM_TO_INT.at(state), 0x00};
+  this->send_command_(CMD_SET_BAUD_RATE, cmd_value, 2);
+  // Unlike the other setters, deliberately just restart_() here rather than
+  // restart_and_read_all_info() -- matches the native ld2410 component. The sensor reboots
+  // and comes back up talking at the new baud rate.
+  this->set_timeout(200, [this]() { this->restart_(); });
+
+#ifdef USE_LD2410_UART_ID
+  if (this->uart_enabled_) {
+    // Live-reload this ESP32's own uart: peripheral to match, once the sensor has actually
+    // had time to reboot (not just the 200ms round-trip for the restart command itself) --
+    // native ld2410 doesn't do this (it just logs a reminder to edit YAML and reflash), but
+    // uart::UARTComponent exposes exactly this via set_baud_rate()+load_settings().
+#ifdef USE_LD2410_BLE_CLIENT
+    // Needs explicit `uart::UARTDevice::` qualification: ble_client::BLEClientNode *also*
+    // declares its own same-named `parent_` (pointing at the BLEClient instead), so plain
+    // `this->parent_` is ambiguous on a class that inherits both. With no BLE compiled in at
+    // all, `uart::UARTDevice::parent_` is the only `parent_` in scope and the plain form would
+    // work too, but the qualified form is harmless either way, so it's kept unconditional here.
+#endif
+    // This only affects the *current* boot -- it doesn't change what's baked into the
+    // compiled firmware, so a future reboot for any other reason still comes back up at the
+    // YAML-configured rate. Updating `baud_rate:` and reflashing is still the right move for
+    // a permanent change; this just means the link doesn't stay broken until then.
+    uint32_t new_baud_rate = std::stoul(state);
+    this->set_timeout(1000, [this, new_baud_rate]() {
+      uart::UARTDevice::parent_->set_baud_rate(new_baud_rate);
+      uart::UARTDevice::parent_->load_settings(false);
+      ESP_LOGI(TAG, "Reloaded local UART to %u baud to match the sensor's new setting",
+               static_cast<unsigned>(new_baud_rate));
+    });
+  }
+#endif  // USE_LD2410_UART_ID
+}
+
+#ifdef USE_LD2410_BLE_CLIENT
+void LD2410BLEComponent::set_permissions() {
+  if (this->password_.length() != 6) {
+    ESP_LOGE(TAG, "set_bluetooth_password(): invalid password length, must be exactly 6 chars '%s'", this->password_.c_str());
+    return;
+  }
+  uint8_t cmd_value[6];
+  std::copy(this->password_.begin(), this->password_.end(), std::begin(cmd_value));
+  // BLE session bootstrap: this is a BLE-only password gate, must go over the link being
+  // established regardless of which transport is currently preferred.
+  this->send_command_(CMD_PERMISSIONS, cmd_value, 6, /*force_ble=*/true);
+}
+#endif  // USE_LD2410_BLE_CLIENT
+
+void LD2410BLEComponent::set_bluetooth_password(const std::string &password) {
+  if (password.length() != 6) {
+    ESP_LOGE(TAG, "set_bluetooth_password(): invalid password length, must be exactly 6 chars '%s'", password.c_str());
+    return;
+  }
+  this->set_config_mode_(true);
+  uint8_t cmd_value[6];
+  std::copy(password.begin(), password.end(), std::begin(cmd_value));
+  this->send_command_(CMD_BT_PASSWORD, cmd_value, 6);
+  this->set_config_mode_(false);
+  this->password_ = password;
+}
+
+void LD2410BLEComponent::set_engineering_mode(bool enable, bool force_ble) {
+  this->set_config_mode_(true, force_ble);
+  last_engineering_mode_change_millis_ = millis();
+  uint8_t cmd = enable ? CMD_ENABLE_ENG : CMD_DISABLE_ENG;
+  this->send_command_(cmd, nullptr, 0, force_ble);
+  this->set_config_mode_(false, force_ble);
+}
+
+void LD2410BLEComponent::factory_reset() {
+  this->set_config_mode_(true);
+  this->send_command_(CMD_RESET, nullptr, 0);
+  this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
+}
+
+void LD2410BLEComponent::restart_() { this->send_command_(CMD_RESTART, nullptr, 0); }
+
+void LD2410BLEComponent::query_parameters_() { this->send_command_(CMD_QUERY, nullptr, 0); }
+void LD2410BLEComponent::get_version_() { this->send_command_(CMD_VERSION, nullptr, 0); }
+void LD2410BLEComponent::get_mac_() {
+  uint8_t cmd_value[2] = {0x01, 0x00};
+  this->send_command_(CMD_MAC, cmd_value, 2);
+}
+void LD2410BLEComponent::get_distance_resolution_() { this->send_command_(CMD_QUERY_DISTANCE_RESOLUTION, nullptr, 0); }
+
+void LD2410BLEComponent::get_light_control_() { this->send_command_(CMD_QUERY_LIGHT_CONTROL, nullptr, 0); }
+
+#ifdef USE_NUMBER
+void LD2410BLEComponent::set_max_distances_timeout() {
+  if (!this->max_move_distance_gate_number_->has_state() || !this->max_still_distance_gate_number_->has_state() ||
+      !this->timeout_number_->has_state()) {
+    return;
+  }
+  int max_moving_distance_gate_range = static_cast<int>(this->max_move_distance_gate_number_->state);
+  int max_still_distance_gate_range = static_cast<int>(this->max_still_distance_gate_number_->state);
+  int timeout = static_cast<int>(this->timeout_number_->state);
+  uint8_t value[18] = {0x00,
+                       0x00,
+                       lowbyte(max_moving_distance_gate_range),
+                       highbyte(max_moving_distance_gate_range),
+                       0x00,
+                       0x00,
+                       0x01,
+                       0x00,
+                       lowbyte(max_still_distance_gate_range),
+                       highbyte(max_still_distance_gate_range),
+                       0x00,
+                       0x00,
+                       0x02,
+                       0x00,
+                       lowbyte(timeout),
+                       highbyte(timeout),
+                       0x00,
+                       0x00};
+  uint32_t seq = ++this->write_seq_;
+  this->max_move_distance_seq_ = seq;
+  this->max_still_distance_seq_ = seq;
+  this->timeout_seq_ = seq;
+  this->set_config_mode_(true);
+  this->send_command_(CMD_MAXDIST_DURATION, value, 18);
+  this->query_parameters_();
+  this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
+  this->set_config_mode_(false);
+}
+
+void LD2410BLEComponent::set_gate_threshold(uint8_t gate) {
+  number::Number *motionsens = this->gate_move_threshold_numbers_[gate];
+  number::Number *stillsens = this->gate_still_threshold_numbers_[gate];
+
+  if (!motionsens->has_state() || !stillsens->has_state()) {
+    return;
+  }
+  int motion = static_cast<int>(motionsens->state);
+  int still = static_cast<int>(stillsens->state);
+
+  this->set_config_mode_(true);
+  // reference
+  // https://drive.google.com/drive/folders/1p4dhbEJA3YubyIjIIC7wwVsSo8x29Fq-?spm=a2g0o.detail.1000023.17.93465697yFwVxH
+  //   Send data: configure the motion sensitivity of distance gate 3 to 40, and the static sensitivity of 40
+  // 00 00 (gate)
+  // 03 00 00 00 (gate number)
+  // 01 00 (motion sensitivity)
+  // 28 00 00 00 (value)
+  // 02 00 (still sensitivtiy)
+  // 28 00 00 00 (value)
+  uint8_t value[18] = {0x00, 0x00, lowbyte(gate),   highbyte(gate),   0x00, 0x00,
+                       0x01, 0x00, lowbyte(motion), highbyte(motion), 0x00, 0x00,
+                       0x02, 0x00, lowbyte(still),  highbyte(still),  0x00, 0x00};
+  uint32_t seq = ++this->write_seq_;
+  this->gate_move_threshold_seq_[gate] = seq;
+  this->gate_still_threshold_seq_[gate] = seq;
+  this->send_command_(CMD_GATE_SENS, value, 18);
+  this->query_parameters_();
+  this->set_config_mode_(false);
+}
+
+void LD2410BLEComponent::set_gate_still_threshold_number(int gate, number::Number *n) {
+  this->gate_still_threshold_numbers_[gate] = n;
+}
+
+void LD2410BLEComponent::set_gate_move_threshold_number(int gate, number::Number *n) {
+  this->gate_move_threshold_numbers_[gate] = n;
+}
+#endif
+
+void LD2410BLEComponent::set_light_out_control() {
+#ifdef USE_NUMBER
+  if (this->light_threshold_number_ != nullptr && this->light_threshold_number_->has_state()) {
+    this->light_threshold_ = this->light_threshold_number_->state;
+  }
+#endif
+#ifdef USE_SELECT
+  if (this->light_function_select_ != nullptr && !this->light_function_select_->current_option().empty()) {
+    this->light_function_ = this->light_function_select_->current_option().str();
+  }
+  if (this->out_pin_level_select_ != nullptr && !this->out_pin_level_select_->current_option().empty()) {
+    this->out_pin_level_ = this->out_pin_level_select_->current_option().str();
+  }
+#endif
+  if (this->light_function_.empty() || this->out_pin_level_.empty() || this->light_threshold_ < 0) {
+    return;
+  }
+  this->set_config_mode_(true);
+  uint8_t light_function = LIGHT_FUNCTION_ENUM_TO_INT.at(this->light_function_);
+  uint8_t light_threshold = static_cast<uint8_t>(this->light_threshold_);
+  uint8_t out_pin_level = OUT_PIN_LEVEL_ENUM_TO_INT.at(this->out_pin_level_);
+  uint8_t value[4] = {light_function, light_threshold, out_pin_level, 0x00};
+  this->send_command_(CMD_SET_LIGHT_CONTROL, value, 4);
+  this->get_light_control_();
+  this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
+  this->set_config_mode_(false);
+}
+
+#ifdef USE_SENSOR
+void LD2410BLEComponent::set_gate_move_sensor(int gate, sensor::Sensor *s) { this->gate_move_sensors_[gate] = s; }
+void LD2410BLEComponent::set_gate_still_sensor(int gate, sensor::Sensor *s) { this->gate_still_sensors_[gate] = s; }
+#endif
+
+}  // namespace ld2410_ble
+}  // namespace esphome

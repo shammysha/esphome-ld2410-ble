@@ -155,6 +155,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_MAC_SUFFIX, default=MAC_SUFFIX_DISABLED): _validate_mac_suffix,
             cv.Optional(CONF_DISABLED, default=False): cv.boolean,
+            # Rate-limits how often a periodic data frame is actually processed (sensor
+            # readings, binary_sensor states, the engineering_mode switch's own state) --
+            # "Reduce data update rate to prevent home assistant database size grow fast" per
+            # handle_periodic_data_()'s own comment. Default 0 = no throttling, every frame
+            # processed. uint16_t on the C++ side, hence the 65535ms cap.
+            cv.Optional(CONF_THROTTLE, default="0ms"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=cv.TimePeriod(milliseconds=65535)),
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_ld2410_ble,
@@ -196,6 +205,7 @@ async def to_code(config):
         cg.add(var.set_mac_suffix(high_byte, low_byte))
     cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_disabled(config[CONF_DISABLED]))
+    cg.add(var.set_throttle(config[CONF_THROTTLE].total_milliseconds))
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(

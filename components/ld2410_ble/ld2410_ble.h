@@ -425,7 +425,13 @@ class LD2410BLEComponent : public PollingComponent
 
   int32_t last_periodic_millis_ = millis();
   int32_t last_engineering_mode_change_millis_ = millis();
-  uint16_t throttle_;
+  // 0 = no throttling. Was previously left with no default initializer at all -- genuinely
+  // uninitialized memory gating the whole handle_periodic_data_() body (sensor readings,
+  // binary_sensor states, and the engineering_mode switch's post-boot correction all sat
+  // behind it), for an unpredictable stretch after every single boot. Made worse by
+  // set_throttle()/CONF_THROTTLE never actually being wired up in __init__.py either, so
+  // there was no way to have configured a real value even if you'd tried.
+  uint16_t throttle_{0};
 #ifdef USE_LD2410_BLE_CLIENT
   uint16_t handle;
   uint16_t char_handle;

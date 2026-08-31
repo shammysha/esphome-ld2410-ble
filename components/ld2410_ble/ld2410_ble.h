@@ -206,6 +206,7 @@ class LD2410BLEComponent : public PollingComponent
  public:
   LD2410BLEComponent() = default;
 
+  void setup() override;
   void dump_config() override;
   void update() override;
   void loop() override;

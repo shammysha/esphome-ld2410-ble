@@ -18,6 +18,19 @@ namespace ld2410_ble{
 
 static const char *const TAG = "ld2410";
 
+void LD2410BLEComponent::setup() {
+#ifdef USE_LD2410_UART_ID
+  // BLE has its own trigger for this (gattc_event_handler's ESP_GATTC_SEARCH_CMPL_EVT, once a
+  // connection is actually established) -- UART has no equivalent "link is ready" event, the
+  // bus is just there once wired. Without this, a UART-only instance (or a dual-transport one
+  // before BLE happens to connect) never saw version/MAC/distance_resolution/light_control/gate
+  // numbers populate until something else (e.g. an edited number) triggered its own query.
+  if (this->uart_enabled_) {
+    this->set_timeout(200, [this]() { this->read_all_info(); });
+  }
+#endif
+}
+
 #ifdef USE_LD2410_BLE_CLIENT
 void LD2410BLEComponent::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
   // disabled_: update() never tells the parent ble_client to connect in the first place, so

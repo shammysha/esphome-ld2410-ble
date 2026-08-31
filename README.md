@@ -98,7 +98,9 @@ binary_sensor:
 ```
 
 See [`examples/multiple-sensors.yaml`](examples/multiple-sensors.yaml) for a fuller reference
-covering every option and all three transport shapes (BLE-only, UART-only, dual-transport).
+covering every `ld2410_ble:` transport/connection option, across all three transport shapes
+(BLE-only, UART-only, dual-transport) — it doesn't show every entity field, just one of each
+platform.
 
 ## Credits
 

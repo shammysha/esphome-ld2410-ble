@@ -100,8 +100,10 @@ binary_sensor:
       name: Moving Target
 ```
 
-Более полный референс со всеми опциями и всеми тремя вариантами транспорта (только BLE,
-только UART, dual-transport) — в [`examples/multiple-sensors.yaml`](examples/multiple-sensors.yaml).
+Более полный референс со всеми опциями подключения (`ld2410_ble:`), для всех трёх вариантов
+транспорта (только BLE, только UART, dual-transport) — в
+[`examples/multiple-sensors.yaml`](examples/multiple-sensors.yaml). Каждое поле каждой
+платформы сущностей там не показано — только по одному примеру на платформу.
 
 ## Благодарности
 
